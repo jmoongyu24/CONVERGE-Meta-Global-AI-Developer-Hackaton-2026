@@ -6,7 +6,7 @@
     "lineWidth": 100
   },
   "linter": {
-    "rules": { "recommended": true }
+    "rules": { "preset": "recommended" }
   },
   "assist": {
     "actions": { "source": { "organizeImports": "on" } }
