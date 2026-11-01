@@ -13,7 +13,7 @@
 - **남은 시간**: 약 3.5일. Must 기능(F0~F6)과 제출(F8)에 집중하고, 11/4 20:00 KST에 feature freeze.
 - **진행 순서**: Meta API key(credit)가 오기 전에는 key 없이 되는 작업(F0a → F1 → F3 → F4 → F5)을 먼저 한다. F1의 gold label을 F2(LLM) 출력과 같은 schema로 만들어서, key 없이도 engine·API·UI를 실제와 같은 데이터로 개발한다. key가 오면 F2가 같은 schema를 만들도록 연결하고, gold와 비교한 결과가 곧 F7 eval이 된다.
 - **모델 학습**: 없음. 모든 AI 기능은 Meta Model API 호출로 구현.
-- **진행 현황 (11/1)**: F0a · F1 · F3 · F4 완료. 다음은 F5 (Team View). Notion 실제 연동 테스트는 test page 연결 대기 중.
+- **진행 현황 (11/1)**: F0a · F1 · F3 · F4 · F5 완료. Notion 실제 연동 확인 (시나리오 A 11개 page를 올리고 다시 import해서 원본과 일치). 남은 것은 key가 필요한 F0b · F2 · F6 · F7과 F8.
 
 ---
 
@@ -283,7 +283,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
   - 시나리오 3개 (모두 PhD 2명이 주도권 경합, MS 1명이 한쪽을 지원): self-organizing agents (11회, 2026), long-term dependency RNN → LSTM → GRU → Transformer (10회, 2014~2017), sim-to-real (7회, 2026). 상세는 [data/demo/README.md](../data/demo/README.md)
 - 정답(gold.json)은 F2 출력과 **같은 schema**로 만든다 → key 없이 F3~F5를 개발하고, key가 오면 그대로 F7 eval에 쓴다
 - (선택) demo 회의록을 Notion 테스트 workspace에 올리는 script. 영상의 "Notion 연결" 장면용
-- **DoD**: demo 3개 시나리오 import 완료 (11/1). Notion은 Markdown ↔ block 변환을 28개 회의록 round trip test로 검증했고, 실제 연동은 test page를 지정받아 `push-notion` → `notion` import로 확인한다
+- **DoD**: demo 3개 시나리오 import 완료 (11/1). Notion은 Markdown ↔ block 변환을 28개 회의록 round trip test로 검증했고, 실제 연동도 test page 'Meta AI Hackaton Test' 아래 시나리오 A 11개 page로 확인 완료 (회의 시각·모든 줄 일치)
 
 ### F2. Extract & Link · 11/2(월) 오후 · 4h
 
@@ -311,12 +311,14 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - 문제·접근·기대 기여 같은 구조화 필드는 LLM 추출(F2) 이후 검토
 - **DoD**: 3개 시나리오를 headless Chrome으로 캡처해서 lineage·panel·시점 이동 확인
 
-### F5. Team View · 11/3(화) 밤 · 3h
+### F5. Team View · 완료 (11/1)
 
-- member 컬럼: 현재 담당 아이디어 카드, 최근 활동
-- stance matrix (member × idea): 제안·지지·우려·질문 → 합의 구간과 충돌 구간이 바로 보이게
-- 지난 회의 이후 변화 digest
-- **DoD**: 교수님 입장에서 10초 안에 "누가 뭘 하는지, 어디서 의견이 갈리는지" 파악 가능
+- 상단 요약: active 아이디어, 의견이 갈린 아이디어, 팀 합의, 미해결 질문 수
+- 팀원 카드: Leads(담당) / Backs(지지) / Challenges(반대) / Next(할 일). 지지·반대는 최근 순으로 시점과 함께 보여서 편을 옮긴 것이 드러난다 (예: Amir가 '15 GRU+attention → '17 Transformer)
+- 입장 matrix (member × idea): 지지는 채움, 반대는 테두리, 미정은 흐림. 팀원 색과 겹치지 않게 hue 대신 모양으로 구분. 의견이 갈린 아이디어가 맨 위, 닫힌 아이디어는 맨 아래. 칸을 누르면 그 입장의 원문 quote
+- 합의·결정·미해결 질문 목록 (누르면 원문)
+- Lineage | Team 탭: slider·digest를 함께 쓰고, deep link `view=team` 지원
+- **DoD**: 3개 시나리오 캡처로 확인. 시나리오 A에서 Mina ↔ Leo 대립, Jae의 Leo 지지, 교수의 hybrid 추진이 한 화면에 보임
 
 ### F6. Converge Room · 11/4(수) 오전~오후 · 6h
 
