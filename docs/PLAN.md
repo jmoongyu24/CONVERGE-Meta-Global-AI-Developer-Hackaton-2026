@@ -13,6 +13,7 @@
 - **남은 시간**: 약 3.5일. Must 기능(F0~F6)과 제출(F8)에 집중하고, 11/4 20:00 KST에 feature freeze.
 - **진행 순서**: Meta API key(credit)가 오기 전에는 key 없이 되는 작업(F0a → F1 → F3 → F4 → F5)을 먼저 한다. F1의 gold label을 F2(LLM) 출력과 같은 schema로 만들어서, key 없이도 engine·API·UI를 실제와 같은 데이터로 개발한다. key가 오면 F2가 같은 schema를 만들도록 연결하고, gold와 비교한 결과가 곧 F7 eval이 된다.
 - **모델 학습**: 없음. 모든 AI 기능은 Meta Model API 호출로 구현.
+- **진행 현황 (11/1)**: F0a · F1 · F3 · F4 완료. 다음은 F5 (Team View). Notion 실제 연동 테스트는 test page 연결 대기 중.
 
 ---
 
@@ -299,12 +300,16 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - member profile·의견이 갈리는 구간은 UI가 stance matrix에서 바로 계산한다. `/api/ingest`·`/api/process`(SSE)는 LLM 처리와 함께 F2로 옮긴다
 - **DoD**: Swagger 확인, pytest 17개 통과 (lineage·time travel·dormancy·입장 변화·잘못된 claim 차단·Notion round trip·API)
 
-### F4. Lineage View + Idea Canvas · 11/3(화) · 5h
+### F4. Lineage View + Idea Canvas · 완료 (11/1)
 
-- x축 = 회의(시간), lane = 아이디어, 색 = owner, branch·merge edge, 상태 badge (active·dormant·dropped·converged)
-- time slider + 재생 버튼: 아이디어가 생기고 갈라지고 합쳐지는 과정을 animation으로
-- 노드 클릭 → 상세 panel: Idea Canvas (문제·접근·기대 기여·미해결 질문·다음 단계) + 변화 이력 + 근거 quote (날짜·발언자·Notion 링크)
-- **DoD**: demo dataset으로 재생하면 lineage가 자연스럽게 그려지고, 모든 노드에서 근거 quote를 확인할 수 있음
+- git-graph 스타일 SVG: x축 = 회의, lane = 아이디어, 색 = owner, branch·merge 곡선, 점 크기 = 그 회의에서 언급된 양. 상태는 모양으로도 구분 (dormant는 흐려진 lane, parked ○, dropped ✕)
+- 색: 교수는 중립 회색, 학생 3명은 validator로 검증한 categorical 색 (blue·orange·aqua, 모든 pair 통과). 색만으로 구분하지 않도록 이름 label·glyph를 항상 함께 표시
+- time slider + Play: 모든 시점의 상태를 미리 받아두고 회의 단위로 이동, 새로 생긴 선·점은 fade-in
+- 아이디어 panel: 요약, 계보(From / Led to), 팀원별 입장(For·Against·Undecided), 질문·할 일, 변화 이력, 근거 quote. quote를 누르면 원문 회의록에서 해당 줄을 highlight (Notion source면 Notion 링크)
+- 회의 digest: 그 회의에서 생긴 아이디어 변화·입장 변화·합의·결정
+- Table view, keyboard 선택, deep link (`?ws=&at=&idea=`로 같은 화면 재현 → demo 영상·공유용)
+- 문제·접근·기대 기여 같은 구조화 필드는 LLM 추출(F2) 이후 검토
+- **DoD**: 3개 시나리오를 headless Chrome으로 캡처해서 lineage·panel·시점 이동 확인
 
 ### F5. Team View · 11/3(화) 밤 · 3h
 

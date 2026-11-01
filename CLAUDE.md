@@ -50,7 +50,7 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
   - type: `feat` 기능 · `fix` 버그 · `refactor` · `perf` · `test` · `docs` · `style` · `chore` · `build` · `ci`
   - subject: 무엇을 했는지 구체적으로 (English, 명령형, 소문자 시작, 마침표 없음, 72자 이내). "update docs"처럼 추상적으로 쓰지 않는다.
   - 본문: 작업한 파일마다 `- <path>: <무엇을 바꿨는지>`를 빠짐없이 한 줄씩 쓴다.
-  - 한 commit = 한 가지 논리적 변경. 사용자가 직접 commit하므로 `git commit -F - <<'EOF'` 형태로 복사해 쓸 수 있게 제시한다.
+  - 한 commit = 한 가지 논리적 변경. 사용자가 직접 commit하므로 `git commit -F - <<'EOF'` 형태로 복사해 쓸 수 있게 제시하고, 어느 폴더에서 붙여넣어도 되도록 첫 줄에 `cd "$(git rev-parse --show-toplevel)"`를 넣는다.
 - **PR**: 기능(F#) 1개 = PR 1개. 제목은 commit 형식, 본문은 What / Why / How to test / Screenshot. squash merge 후 branch 삭제.
 - **Tag**: `v0.1.0` (backend MVP) · `v0.2.0` (UI) · `v1.0.0` (제출본)
 
