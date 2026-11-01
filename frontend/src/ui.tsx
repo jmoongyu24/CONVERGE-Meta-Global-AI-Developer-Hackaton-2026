@@ -68,7 +68,7 @@ export function lookup(state: LineageState) {
 // --- Chips and dots ------------------------------------------------------------
 
 // Stance and status never rely on color: each chip carries a glyph and a word.
-const STANCE_GLYPH: Record<Stance, string> = {
+export const STANCE_GLYPH: Record<Stance, string> = {
   propose: "◆",
   support: "▲",
   refine: "✎",
@@ -238,8 +238,11 @@ export function DigestList({
 
 // --- Idea panel ----------------------------------------------------------------
 
+/** Stances that count as backing an idea. */
+export const FOR_STANCES: Stance[] = ["propose", "support", "refine"];
+
 const STANCE_GROUPS: { label: string; stances: Stance[] }[] = [
-  { label: "For", stances: ["propose", "support", "refine"] },
+  { label: "For", stances: FOR_STANCES },
   { label: "Against", stances: ["challenge"] },
   { label: "Undecided", stances: ["question", "inform"] },
 ];

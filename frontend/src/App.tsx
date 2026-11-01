@@ -2,11 +2,17 @@ import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fetchTimeline, fetchWorkspaces, type LineageState, type Workspace } from "./api";
 import { LineageView } from "./LineageView";
+import { TeamView } from "./TeamView";
 import { DigestList, formatDate, IdeaPanel, MemberLegend, memberColors, SourceViewer } from "./ui";
 
 const PLAY_STEP_MS = 1400;
+const VIEWS = [
+  { id: "lineage", label: "Lineage" },
+  { id: "team", label: "Team" },
+] as const;
+type View = (typeof VIEWS)[number]["id"];
 
-// Deep links: ?ws=<workspace>&at=<source>&idea=<idea> reopen the same view.
+// Deep links: ?ws=<workspace>&at=<source>&idea=<idea>&view=team reopen the same screen.
 const initial = new URLSearchParams(window.location.search);
 
 export default function App() {
@@ -15,6 +21,7 @@ export default function App() {
   const [timeline, setTimeline] = useState<LineageState[]>([]);
   const [position, setPosition] = useState(0);
   const [selected, setSelected] = useState(initial.get("idea"));
+  const [view, setView] = useState<View>(initial.get("view") === "team" ? "team" : "lineage");
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<{ source: string; line: number } | null>(null);
@@ -68,14 +75,16 @@ export default function App() {
     if (!state || state.workspace.id !== workspaceId) return;
     const params = new URLSearchParams({ ws: state.workspace.id, at: state.as_of });
     if (selected) params.set("idea", selected);
+    if (view !== "lineage") params.set("view", view);
     window.history.replaceState(null, "", `?${params}`);
-  }, [workspaceId, state, selected]);
+  }, [workspaceId, state, selected, view]);
 
   if (error) return <main className="p-8 text-sm">Could not reach the API: {error}</main>;
   if (!state) return <main className="p-8 text-sm text-muted">Loading lineage…</main>;
 
   const colors = memberColors(state.workspace);
   const current = state.sources[position];
+  const openQuote = (source: string, line: number) => setQuote({ source, line });
   const togglePlay = () => {
     if (playing) {
       setPlaying(false);
@@ -128,7 +137,33 @@ export default function App() {
             <MemberLegend workspace={state.workspace} colors={colors} />
           </div>
 
-          <LineageView state={state} colors={colors} selected={selected} onSelect={setSelected} />
+          <div className="mb-4 inline-flex rounded-lg border border-hairline p-0.5 text-sm">
+            {VIEWS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={view === option.id}
+                onClick={() => setView(option.id)}
+                className={`rounded-md px-3 py-1 ${
+                  view === option.id ? "bg-ink text-surface" : "text-ink-2 hover:bg-wash"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {view === "lineage" ? (
+            <LineageView state={state} colors={colors} selected={selected} onSelect={setSelected} />
+          ) : (
+            <TeamView
+              state={state}
+              colors={colors}
+              selected={selected}
+              onSelect={setSelected}
+              onOpenQuote={openQuote}
+            />
+          )}
 
           <div className="mt-4 flex items-center gap-4 border-t border-hairline pt-4">
             <button
@@ -183,7 +218,7 @@ export default function App() {
               ideaId={selected}
               colors={colors}
               onSelectIdea={setSelected}
-              onOpenQuote={(source, line) => setQuote({ source, line })}
+              onOpenQuote={openQuote}
             />
           ) : (
             <div className="space-y-3 text-sm text-ink-2">

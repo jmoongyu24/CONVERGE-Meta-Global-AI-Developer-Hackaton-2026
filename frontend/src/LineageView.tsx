@@ -3,7 +3,16 @@
 
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { IdeaView, LineageState, LocatedMention, StanceCell } from "./api";
-import { columnLabel, Dot, formatDate, lookup, NEUTRAL, StatusChip, truncate } from "./ui";
+import {
+  columnLabel,
+  Dot,
+  FOR_STANCES,
+  formatDate,
+  lookup,
+  NEUTRAL,
+  StatusChip,
+  truncate,
+} from "./ui";
 
 const GUTTER = 240; // left column holding the lane labels
 const TOP = 36; // column headers
@@ -362,8 +371,6 @@ function LineageGraph({ state, colors, selected, onSelect }: Props) {
 
 // --- Table (the same data without relying on color) ----------------------------
 
-const FOR: StanceCell["latest"][] = ["propose", "support", "refine"];
-
 function LineageTable({ state, colors, selected, onSelect }: Props) {
   const { name, date } = lookup(state);
   const stancesOn = (ideaId: string, pick: (cell: StanceCell) => boolean) =>
@@ -413,7 +420,7 @@ function LineageTable({ state, colors, selected, onSelect }: Props) {
                 {state.mentions.filter((m) => m.idea === idea.id).length}
               </td>
               <td className="py-2 pr-3 text-right tabular-nums">
-                {stancesOn(idea.id, (cell) => FOR.includes(cell.latest))}
+                {stancesOn(idea.id, (cell) => FOR_STANCES.includes(cell.latest))}
               </td>
               <td className="py-2 text-right tabular-nums">
                 {stancesOn(idea.id, (cell) => cell.latest === "challenge")}
