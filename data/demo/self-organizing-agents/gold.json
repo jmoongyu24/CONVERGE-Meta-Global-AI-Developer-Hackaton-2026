@@ -22,6 +22,14 @@
         {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: one-page proposal for learned topology"},
         {"kind": "action", "member": "leo", "idea": "role-negotiation", "quote": "Leo: one-page proposal for role negotiation"},
         {"kind": "action", "member": "jae", "quote": "Jae: set up a fixed-role baseline harness on 3 tasks"}
+      ],
+      "modules": [
+        {"op": "add", "module": "tasks", "title": "Task suite", "note": "Coding, planning, and research QA tasks.", "owner": "jae", "status": "adopted", "quote": "coding, planning, and research QA tasks"},
+        {"op": "add", "module": "fixed-roles", "title": "Fixed roles", "note": "Hand-written planner, coder, and tester prompts: the baseline.", "owner": "jae", "status": "adopted", "inputs": ["tasks"], "quote": "hand-written planner, coder, and tester prompts"},
+        {"op": "add", "module": "runtime", "title": "Agent runtime", "note": "Runs the agents and logs every message.", "status": "adopted", "inputs": ["fixed-roles"], "quote": "runs the agents and logs every message"},
+        {"op": "add", "module": "topology-policy", "title": "Topology policy (RL)", "note": "Decides who talks to whom each round; trained with RL on task success.", "owner": "mina", "status": "proposed", "inputs": ["tasks"], "idea": "learned-topology", "quote": "A small policy decides who talks to whom at each round, trained with RL on task success."},
+        {"op": "add", "module": "role-negotiation", "title": "Role negotiation", "note": "Agents negotiate their roles in-context before solving; no training.", "owner": "leo", "status": "proposed", "inputs": ["tasks"], "idea": "role-negotiation", "quote": "Agents negotiate their roles in-context before solving"},
+        {"op": "update", "module": "runtime", "inputs": ["fixed-roles", "topology-policy", "role-negotiation"], "quote": "can a team of LLM agents organize itself for the task at hand?"}
       ]
     },
     {
@@ -40,6 +48,9 @@
         {"kind": "question", "member": "jae", "idea": "learned-topology", "quote": "asked how many episodes the policy needs before it beats a fixed graph"},
         {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: cost estimate with the 6-template action space"},
         {"kind": "action", "member": "jae", "quote": "Jae: finish the research-QA task in the harness"}
+      ],
+      "modules": [
+        {"op": "update", "module": "topology-policy", "note": "Graph policy over agents; reward = success minus a per-message penalty; picks among 6 edge templates.", "quote": "graph policy over agents, reward = task success minus a penalty per message"}
       ]
     },
     {
@@ -63,6 +74,9 @@
         {"kind": "action", "member": "leo", "idea": "role-negotiation", "quote": "Leo: related-work table"},
         {"kind": "action", "member": "jae", "idea": "role-negotiation", "quote": "Jae: extend the negotiation pilot to all 5 tasks"},
         {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: RL pilot on one task family"}
+      ],
+      "modules": [
+        {"op": "update", "module": "role-negotiation", "note": "Two rounds of role bidding, then a short vote assigns roles; no training.", "quote": "agents run two rounds of role bidding"}
       ]
     },
     {
@@ -86,6 +100,12 @@
         {"kind": "question", "member": "jae", "idea": "per-role-finetune", "quote": "Do we have data for that?"},
         {"kind": "action", "member": "jae", "quote": "Jae: build evaluation suite v0"},
         {"kind": "action", "member": "leo", "idea": "per-role-finetune", "quote": "Leo: rough cost estimate for per-role fine-tuning"}
+      ],
+      "modules": [
+        {"op": "add", "module": "eval-suite", "title": "Shared evaluation suite", "note": "Success rate, tokens used, and failure cascades on every method.", "owner": "jae", "status": "adopted", "inputs": ["runtime"], "quote": "metrics = success rate, tokens used, failure cascades"},
+        {"op": "update", "module": "tasks", "note": "5 tasks: coding, math, planning, negotiation game, research QA.", "quote": "5 tasks (coding, math, planning, negotiation game, research QA)"},
+        {"op": "add", "module": "specialists", "title": "Per-role specialists", "note": "Small fine-tuned models swapped in for each negotiated role.", "owner": "leo", "status": "proposed", "inputs": ["role-negotiation"], "idea": "per-role-finetune", "quote": "swap in small fine-tuned specialist models per role"},
+        {"op": "update", "module": "runtime", "inputs": ["fixed-roles", "topology-policy", "role-negotiation", "specialists"], "quote": "New idea on top of negotiation"}
       ]
     },
     {
@@ -105,6 +125,10 @@
         {"kind": "decision", "member": "han", "quote": "Report token counts from day one."},
         {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: try a non-RL search over topologies"},
         {"kind": "action", "member": "jae", "quote": "Jae: add math + negotiation game to the suite"}
+      ],
+      "modules": [
+        {"op": "remove", "module": "specialists", "quote": "parking the idea for now"},
+        {"op": "update", "module": "eval-suite", "note": "Logs failure cascades automatically and reports token counts from day one.", "quote": "Failure cascade = one agent's error propagating to at least two others"}
       ]
     },
     {
@@ -126,6 +150,12 @@
         {"kind": "question", "member": "jae", "idea": "bandit-topology", "quote": "Jae asked whether the bandit's choices transfer across task types"},
         {"kind": "action", "member": "mina", "idea": "bandit-topology", "quote": "Mina: bandit on all 5 suite tasks"},
         {"kind": "action", "member": "leo", "quote": "Leo: write down what self-organization means for our paper"}
+      ],
+      "modules": [
+        {"op": "add", "module": "bandit", "title": "Topology bandit", "note": "Contextual bandit choosing one of six topologies per task type; about 40 episodes per type.", "owner": "mina", "status": "proposed", "inputs": ["tasks"], "idea": "bandit-topology", "quote": "a contextual bandit picks one topology from a small library"},
+        {"op": "update", "module": "bandit", "inputs": ["tasks", "eval-suite"], "quote": "learns from success minus token cost"},
+        {"op": "remove", "module": "topology-policy", "quote": "The RL version is parked"},
+        {"op": "update", "module": "runtime", "inputs": ["fixed-roles", "role-negotiation", "bandit"], "quote": "the bandit picks a topology per task type"}
       ]
     },
     {
@@ -147,6 +177,10 @@
         {"kind": "consensus", "quote": "All agreed: cost goes in every table from now on."},
         {"kind": "action", "member": "jae", "idea": "role-negotiation", "quote": "Jae: per-task success-vs-tokens curves"},
         {"kind": "action", "idea": "comm-budget", "quote": "Mina + Leo: agree on one budget setting for the comparison"}
+      ],
+      "modules": [
+        {"op": "add", "module": "budget", "title": "Communication budget", "note": "Messages and tokens for every method; main metric = success under a fixed token budget.", "owner": "han", "status": "adopted", "inputs": ["runtime"], "idea": "comm-budget", "quote": "treat communication budget as first-class"},
+        {"op": "update", "module": "eval-suite", "inputs": ["runtime", "budget"], "quote": "All agreed: cost goes in every table from now on."}
       ]
     },
     {
@@ -168,6 +202,9 @@
         {"kind": "question", "member": "han", "quote": "can we test mid-episode task shifts properly?"},
         {"kind": "action", "member": "jae", "idea": "role-negotiation", "quote": "Jae: design a mid-episode task-shift benchmark"},
         {"kind": "action", "quote": "Mina, Leo: one-page main-claim draft each"}
+      ],
+      "modules": [
+        {"op": "add", "module": "shift-benchmark", "title": "Mid-episode shift benchmark", "note": "The task changes mid-episode; tests whether the team re-organizes.", "owner": "jae", "status": "proposed", "inputs": ["runtime"], "quote": "Jae: design a mid-episode task-shift benchmark"}
       ]
     },
     {
@@ -183,6 +220,9 @@
       ],
       "items": [
         {"kind": "action", "member": "mina", "idea": "hybrid-self-org", "quote": "Next: I sketch the hybrid architecture for Wednesday."}
+      ],
+      "modules": [
+        {"op": "update", "module": "bandit", "inputs": ["tasks", "eval-suite", "role-negotiation"], "quote": "the bandit picks the communication topology for the negotiated roles"}
       ]
     },
     {
@@ -202,6 +242,13 @@
         {"kind": "consensus", "quote": "the mid-episode task shift is the evaluation that matters most for self-organization"},
         {"kind": "action", "member": "jae", "quote": "Jae: run mid-episode shift on bandit, negotiation, and hybrid"},
         {"kind": "action", "member": "leo", "idea": "role-negotiation", "quote": "Leo: spec for negotiating communication links"}
+      ],
+      "modules": [
+        {"op": "update", "module": "role-negotiation", "note": "Stage 1 of the hybrid: agents bid for sub-tasks.", "quote": "Role negotiation: agents bid for sub-tasks"},
+        {"op": "update", "module": "bandit", "note": "Stage 2 of the hybrid: picks the graph for the negotiated roles.", "quote": "Topology bandit: picks the graph for the negotiated roles"},
+        {"op": "update", "module": "shift-benchmark", "status": "adopted", "quote": "Everyone signed off on it."},
+        {"op": "add", "module": "link-negotiation", "title": "Link negotiation", "note": "Agents negotiate the communication links in the same round, so no bandit is needed.", "owner": "leo", "status": "proposed", "inputs": ["role-negotiation"], "idea": "role-negotiation", "quote": "let agents negotiate the communication links too"},
+        {"op": "update", "module": "runtime", "inputs": ["fixed-roles", "role-negotiation", "bandit", "link-negotiation"], "quote": "Then the topology emerges from negotiation and no bandit is needed."}
       ]
     },
     {
@@ -227,6 +274,10 @@
         {"kind": "action", "member": "mina", "idea": "bandit-topology", "quote": "Mina: one-page argument for bandit topology as the main claim"},
         {"kind": "action", "member": "leo", "idea": "hierarchical-negotiation", "quote": "Leo: one-page argument for hierarchical negotiation as the main claim"},
         {"kind": "action", "member": "jae", "quote": "Jae: clean result tables for all three options"}
+      ],
+      "modules": [
+        {"op": "add", "module": "hierarchical", "title": "Hierarchical negotiation", "note": "Sub-teams of at most 4 negotiate internally, then their leads negotiate.", "owner": "jae", "status": "proposed", "inputs": ["role-negotiation"], "idea": "hierarchical-negotiation", "quote": "Sub-teams of at most 4 negotiate internally, then sub-team leads negotiate with each other."},
+        {"op": "update", "module": "runtime", "inputs": ["fixed-roles", "role-negotiation", "bandit", "link-negotiation", "hierarchical"], "quote": "It keeps negotiation training-free and solves the 6-agent problem."}
       ]
     }
   ]

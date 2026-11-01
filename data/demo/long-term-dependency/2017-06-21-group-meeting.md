@@ -11,3 +11,11 @@ I pushed back. Self-attention is quadratic in length: our full documents are 4,0
 Prof. Ruiz agrees the replication is strong evidence, but shares my memory concern for long documents. Asked both of us to bring numbers on 4,000-token documents.
 
 Actions: Amir — Transformer on 1k / 2k / 4k token documents with memory profiling. Me — recurrent-memory prototype. Sora — draft the case for the lab's next two-year agenda.
+
+📄 Transformer replication — Amir
+  Setup: 4 layers, 8 heads, model width 256; trained on our QA data over the weekend.
+  | Model | Hours per epoch | Accuracy, 200+ token questions |
+  | --- | --- | --- |
+  | GRU + attention (main system) | 3.0 | 57% |
+  | Transformer, small | 1.0 | 60% |
+  ![Amir's diagram: embeddings plus positional encodings feed 4 × (multi-head self-attention → feed-forward), and our answer layer reads the last block](assets/2017-06-21-transformer-replication.png)

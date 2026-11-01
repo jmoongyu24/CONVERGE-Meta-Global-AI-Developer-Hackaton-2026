@@ -23,6 +23,14 @@
         {"kind": "action", "member": "yuki", "quote": "Yuki: hardware evaluation protocol draft"},
         {"kind": "action", "member": "hana", "idea": "domain-randomization", "quote": "Hana: DR training setup in Isaac Lab"},
         {"kind": "action", "member": "marco", "idea": "system-id", "quote": "Marco: list of contact parameters to identify"}
+      ],
+      "modules": [
+        {"op": "add", "module": "simulator", "title": "Simulator", "note": "Isaac Lab scene of the peg-in-hole task.", "owner": "hana", "status": "adopted", "quote": "Isaac Lab scene of the peg-in-hole task"},
+        {"op": "add", "module": "policy", "title": "Policy training", "note": "PPO in simulation on the 0.5 mm clearance task.", "owner": "hana", "status": "adopted", "inputs": ["simulator"], "quote": "PPO in simulation, 0.5 mm clearance task"},
+        {"op": "add", "module": "hardware", "title": "Hardware evaluation", "note": "Trials on the Franka arm.", "owner": "yuki", "status": "adopted", "inputs": ["policy"], "quote": "trials on the Franka arm"},
+        {"op": "add", "module": "domain-rand", "title": "Domain randomization", "note": "Randomize friction, mass, damping, peg geometry, and camera pose.", "owner": "hana", "status": "proposed", "idea": "domain-randomization", "quote": "Randomize friction, mass, damping, peg geometry and camera pose"},
+        {"op": "add", "module": "system-id", "title": "System identification", "note": "Calibrates contact parameters from a few real rollouts.", "owner": "marco", "status": "proposed", "inputs": ["hardware"], "idea": "system-id", "quote": "Calibrate the simulator's contact parameters from a few real rollouts"},
+        {"op": "update", "module": "simulator", "inputs": ["domain-rand", "system-id"], "quote": "so the sim matches our robot"}
       ]
     },
     {
@@ -44,6 +52,10 @@
         {"kind": "action", "member": "hana", "idea": "domain-randomization", "quote": "Hana widens friction and chamfer randomization."},
         {"kind": "action", "member": "marco", "idea": "system-id", "quote": "I calibrate friction and contact stiffness from 20 real insertions."},
         {"kind": "action", "member": "yuki", "quote": "Yuki adds force traces to every hardware trial."}
+      ],
+      "modules": [
+        {"op": "update", "module": "hardware", "note": "50 trials per object on the Franka arm.", "quote": "with the new protocol (50 trials per object)"},
+        {"op": "add", "module": "force-traces", "title": "Force traces", "note": "Force readings logged on every hardware trial.", "owner": "yuki", "status": "adopted", "inputs": ["hardware"], "quote": "Yuki adds force traces to every hardware trial."}
       ]
     },
     {
@@ -65,6 +77,9 @@
         {"kind": "question", "member": "okafor", "idea": "system-id", "quote": "does it still hold if the gripper pads wear down over a month?"},
         {"kind": "action", "member": "yuki", "quote": "Yuki: build a held-out object set"},
         {"kind": "action", "member": "marco", "idea": "system-id", "quote": "Marco: test calibration drift over two weeks"}
+      ],
+      "modules": [
+        {"op": "update", "module": "system-id", "note": "Friction and contact stiffness from 20 real insertions; sim matches force traces within 8%.", "inputs": ["hardware", "force-traces"], "quote": "the sim now matches real force traces within 8%"}
       ]
     },
     {
@@ -86,6 +101,11 @@
         {"kind": "decision", "member": "okafor", "idea": "system-id", "quote": "re-identification once a week is enough"},
         {"kind": "action", "member": "yuki", "quote": "Yuki: hardware runs for both extensions on the held-out object set"},
         {"kind": "action", "quote": "Hana + Marco: agree on how to count real-data minutes in the comparison"}
+      ],
+      "modules": [
+        {"op": "update", "module": "domain-rand", "title": "Curriculum randomization", "note": "Starts narrow and widens each parameter once the policy succeeds.", "idea": "adaptive-dr", "quote": "automatic curriculum for randomization"},
+        {"op": "add", "module": "residual", "title": "Residual dynamics model", "note": "Learned from real force traces, on top of the calibrated simulator.", "owner": "marco", "status": "proposed", "inputs": ["force-traces"], "idea": "residual-dynamics", "quote": "learn a residual dynamics model from real force traces"},
+        {"op": "update", "module": "simulator", "inputs": ["domain-rand", "system-id", "residual"], "quote": "add it on top of the calibrated sim"}
       ]
     },
     {
@@ -105,6 +125,9 @@
         {"kind": "consensus", "quote": "every table reports real-robot data minutes alongside success"},
         {"kind": "action", "member": "yuki", "idea": "residual-dynamics", "quote": "Yuki: re-identification per material for the residual model"},
         {"kind": "action", "member": "hana", "idea": "adaptive-dr", "quote": "Hana: curriculum DR with 5 more object geometries"}
+      ],
+      "modules": [
+        {"op": "update", "module": "hardware", "note": "Held-out brass and printed pegs; reports real-robot data minutes next to success.", "quote": "every table reports real-robot data minutes alongside success"}
       ]
     },
     {
@@ -124,6 +147,11 @@
         {"kind": "decision", "member": "okafor", "quote": "CoRL deadline in 5 weeks. One paper. The lead decides the main claim."},
         {"kind": "action", "member": "yuki", "idea": "calibrated-dr", "quote": "Yuki: hardware runs of the combined method"},
         {"kind": "action", "quote": "Hana, Marco: one-page main-claim drafts by 05/27"}
+      ],
+      "modules": [
+        {"op": "add", "module": "calibrated-band", "title": "Calibrated randomization band", "note": "Randomizes in a narrow band around the identified values.", "owner": "okafor", "status": "proposed", "inputs": ["system-id"], "idea": "calibrated-dr", "quote": "randomize in a narrow band around the identified values"},
+        {"op": "update", "module": "simulator", "inputs": ["domain-rand", "system-id", "residual", "calibrated-band"], "quote": "system ID sets the center of each parameter"},
+        {"op": "update", "module": "calibrated-band", "note": "Narrow band around the identified values; Hana wants the width learned, not fixed.", "quote": "Wants the band width learned, not fixed."}
       ]
     },
     {
@@ -142,7 +170,8 @@
         {"kind": "consensus", "quote": "the paper must include the held-out object results"},
         {"kind": "decision", "quote": "main claim and lead author to be decided on June 3"},
         {"kind": "action", "quote": "everyone sends a ranked list of the three options"}
-      ]
+      ],
+      "modules": []
     }
   ]
 }

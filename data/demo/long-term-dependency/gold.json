@@ -21,6 +21,13 @@
         {"kind": "decision", "member": "ruiz", "idea": "lstm", "quote": "Start with LSTM as the first serious attempt"},
         {"kind": "action", "member": "amir", "idea": "vanilla-rnn", "quote": "Amir: keep the vanilla RNN baseline running"},
         {"kind": "action", "member": "daniel", "idea": "lstm", "quote": "Daniel: LSTM design for our setup"}
+      ],
+      "modules": [
+        {"op": "add", "module": "embedding", "title": "Word embeddings", "note": "300-d word vectors trained from scratch.", "owner": "amir", "status": "adopted", "quote": "300-d, trained from scratch"},
+        {"op": "add", "module": "rnn-encoder", "title": "RNN encoder", "note": "Vanilla RNN, 512 units, truncated BPTT of 35 steps.", "owner": "amir", "status": "adopted", "inputs": ["embedding"], "idea": "vanilla-rnn", "quote": "vanilla RNN, 512 units, truncated BPTT of 35"},
+        {"op": "add", "module": "answer", "title": "Answer layer", "note": "Softmax over candidate answer spans.", "owner": "amir", "status": "adopted", "inputs": ["rnn-encoder"], "quote": "softmax over candidate answer spans"},
+        {"op": "add", "module": "lstm-encoder", "title": "LSTM encoder", "note": "Gated memory cell that lets error flow back over many steps.", "owner": "daniel", "status": "proposed", "inputs": ["embedding"], "idea": "lstm", "quote": "I want to try LSTM"},
+        {"op": "update", "module": "answer", "inputs": ["rnn-encoder", "lstm-encoder"], "quote": "Start with LSTM as the first serious attempt"}
       ]
     },
     {
@@ -41,6 +48,9 @@
         {"kind": "question", "member": "sora", "idea": "lstm", "quote": "how much slower per epoch?"},
         {"kind": "action", "member": "amir", "idea": "lstm", "quote": "A: LSTM implementation + accuracy-by-distance plot"},
         {"kind": "action", "member": "daniel", "idea": "lstm", "quote": "D: initialization recipe for the gates"}
+      ],
+      "modules": [
+        {"op": "update", "module": "lstm-encoder", "note": "Input, output and forget gates; 512 cells; same truncated BPTT as the baseline.", "quote": "input, output and forget gates; 512 cells"}
       ]
     },
     {
@@ -61,6 +71,10 @@
         {"kind": "decision", "member": "ruiz", "idea": "lstm", "quote": "LSTM is now the main line"},
         {"kind": "action", "member": "amir", "idea": "lstm", "quote": "Amir runs the forget-bias ablation first"},
         {"kind": "action", "member": "sora", "quote": "Sora reads up on alternatives to sequential processing"}
+      ],
+      "modules": [
+        {"op": "update", "module": "lstm-encoder", "status": "adopted", "quote": "LSTM is now the main line"},
+        {"op": "remove", "module": "rnn-encoder", "quote": "the vanilla RNN stays only as a reference baseline"}
       ]
     },
     {
@@ -82,6 +96,11 @@
         {"kind": "question", "member": "amir", "idea": "soft-attention", "quote": "does that fit in GPU memory on our cards?"},
         {"kind": "action", "member": "sora", "idea": "soft-attention", "quote": "Sora: prototype soft attention on the translation side project"},
         {"kind": "action", "member": "amir", "idea": "soft-attention", "quote": "Amir: measure attention memory use"}
+      ],
+      "modules": [
+        {"op": "update", "module": "lstm-encoder", "note": "LSTM cell with forget-gate bias 1.0; peepholes dropped.", "quote": "LSTM with forget bias is our standard cell from now on"},
+        {"op": "add", "module": "attention", "title": "Soft attention", "note": "Weights every encoder state so the answer can look back at any position.", "owner": "sora", "status": "proposed", "inputs": ["lstm-encoder"], "idea": "soft-attention", "quote": "add soft attention over all hidden states"},
+        {"op": "update", "module": "answer", "inputs": ["lstm-encoder", "attention"], "quote": "the answer layer reads a weighted sum of all encoder states"}
       ]
     },
     {
@@ -102,6 +121,12 @@
         {"kind": "consensus", "quote": "gated units are clearly better than the vanilla RNN on every distance bucket"},
         {"kind": "action", "member": "amir", "idea": "gru", "quote": "A: GRU as the default encoder in the QA code"},
         {"kind": "action", "member": "sora", "idea": "soft-attention", "quote": "S: attention prototype on QA"}
+      ],
+      "modules": [
+        {"op": "add", "module": "gru-encoder", "title": "GRU encoder", "note": "Two gates and no separate cell state; about 20% faster than LSTM.", "owner": "daniel", "status": "adopted", "inputs": ["embedding"], "idea": "gru", "quote": "switch the encoder to the GRU from Cho et al. 2014"},
+        {"op": "remove", "module": "lstm-encoder", "quote": "GRU as the default encoder in the QA code"},
+        {"op": "update", "module": "attention", "inputs": ["gru-encoder"], "quote": "GRU encoder + attention decoder is the natural combination"},
+        {"op": "update", "module": "answer", "inputs": ["gru-encoder", "attention"], "quote": "GRU encoder + attention decoder is the natural combination"}
       ]
     },
     {
@@ -124,6 +149,11 @@
         {"kind": "action", "member": "amir", "idea": "gru-attention", "quote": "Amir — ablation grid"},
         {"kind": "action", "member": "daniel", "idea": "gru-attention", "quote": "Me — training recipe for the joint system."},
         {"kind": "action", "member": "sora", "idea": "soft-attention", "quote": "Sora — attention visualizations for the paper."}
+      ],
+      "modules": [
+        {"op": "update", "module": "attention", "owner": "sora", "status": "adopted", "quote": "Sora owns the attention module"},
+        {"op": "update", "module": "gru-encoder", "note": "Core of the main system: a GRU encoder feeding soft attention.", "owner": "daniel", "idea": "gru-attention", "quote": "asked me to lead it since the encoder is the core of the pipeline"},
+        {"op": "update", "module": "answer", "inputs": ["attention"], "quote": "our main system is now a GRU encoder with soft attention"}
       ]
     },
     {
@@ -149,6 +179,11 @@
         {"kind": "decision", "member": "ruiz", "quote": "Do both, but cheaply"},
         {"kind": "action", "member": "daniel", "idea": "gru-attention", "quote": "Daniel: GRU speed optimizations"},
         {"kind": "action", "member": "sora", "idea": "conv-encoder", "quote": "Sora: dilated conv encoder pilot"}
+      ],
+      "modules": [
+        {"op": "add", "module": "conv-encoder", "title": "Dilated conv encoder", "note": "Stacked dilated convolutions; every position is computed in parallel.", "owner": "sora", "status": "proposed", "inputs": ["embedding"], "idea": "conv-encoder", "quote": "Replace the recurrent encoder with a stack of convolutions"},
+        {"op": "update", "module": "attention", "inputs": ["gru-encoder", "conv-encoder"], "quote": "attention stays; only the encoder changes"},
+        {"op": "update", "module": "gru-encoder", "note": "Speed work: bigger batches, fused GPU kernels, bucketing by length.", "quote": "bigger batches, fused GPU kernels, bucketing by length"}
       ]
     },
     {
@@ -171,6 +206,13 @@
         {"kind": "decision", "member": "ruiz", "idea": "gru-attention", "quote": "keep GRU+attention as the main system; S may continue self-attention as a side project."},
         {"kind": "action", "member": "amir", "idea": "self-attention-encoder", "quote": "A: self-attention prototype on 1,000-token documents"},
         {"kind": "action", "member": "sora", "idea": "self-attention-encoder", "quote": "S: chunked attention to cut memory"}
+      ],
+      "modules": [
+        {"op": "remove", "module": "conv-encoder", "quote": "Dropping the conv encoder."},
+        {"op": "add", "module": "position", "title": "Position signal", "note": "Tells attention where each token sits, since attention alone ignores order.", "owner": "sora", "status": "proposed", "quote": "Add a position signal so order is not lost."},
+        {"op": "add", "module": "self-attn-encoder", "title": "Self-attention encoder", "note": "Every position attends to every other position.", "owner": "sora", "status": "proposed", "inputs": ["embedding", "position"], "idea": "self-attention-encoder", "quote": "self-attention inside the encoder"},
+        {"op": "update", "module": "attention", "inputs": ["gru-encoder", "self-attn-encoder"], "quote": "every position attends to every other position"},
+        {"op": "update", "module": "gru-encoder", "note": "Speedups landed: one full run takes 3.5 days instead of 9.", "quote": "one full run is now 3.5 days instead of 9"}
       ]
     },
     {
@@ -192,6 +234,16 @@
         {"kind": "action", "member": "amir", "idea": "transformer", "quote": "Amir — Transformer on 1k / 2k / 4k token documents with memory profiling."},
         {"kind": "action", "member": "daniel", "idea": "recurrent-memory", "quote": "Me — recurrent-memory prototype."},
         {"kind": "action", "member": "sora", "idea": "transformer", "quote": "Sora — draft the case for the lab's next two-year agenda."}
+      ],
+      "modules": [
+        {"op": "update", "module": "self-attn-encoder", "title": "Transformer encoder", "note": "Blocks of multi-head self-attention and feed-forward layers; no recurrence.", "idea": "transformer", "quote": "an encoder-decoder built only from self-attention and feed-forward layers"},
+        {"op": "update", "module": "position", "title": "Positional encodings", "quote": "with positional encodings and multi-head attention"},
+        {"op": "add", "module": "mhsa", "title": "Multi-head self-attention", "note": "8 heads per block.", "owner": "sora", "status": "proposed", "group": "self-attn-encoder", "quote": "4 × (multi-head self-attention → feed-forward)"},
+        {"op": "add", "module": "ffn", "title": "Feed-forward", "note": "Position-wise feed-forward layer after each attention layer.", "owner": "sora", "status": "proposed", "inputs": ["mhsa"], "group": "self-attn-encoder", "quote": "4 × (multi-head self-attention → feed-forward)"},
+        {"op": "update", "module": "self-attn-encoder", "note": "Amir's small replication: 1.0 h per epoch and 60% on 200+ token questions.", "quote": "| Transformer, small | 1.0 | 60% |"},
+        {"op": "update", "module": "attention", "inputs": ["gru-encoder"], "quote": "our answer layer reads the last block"},
+        {"op": "add", "module": "recurrent-memory", "title": "Recurrent segment memory", "note": "Carries a compressed state across segments, with attention inside each segment.", "owner": "daniel", "status": "proposed", "inputs": ["gru-encoder"], "idea": "recurrent-memory", "quote": "keep a recurrent memory that carries a compressed state across segments"},
+        {"op": "update", "module": "answer", "inputs": ["attention", "self-attn-encoder", "recurrent-memory"], "quote": "use attention within each segment"}
       ]
     },
     {
@@ -213,6 +265,11 @@
         {"kind": "action", "member": "sora", "idea": "transformer", "quote": "Sora: one-page case for an attention-only agenda"},
         {"kind": "action", "member": "daniel", "idea": "recurrent-memory", "quote": "Daniel: one-page case for a recurrent-memory agenda"},
         {"kind": "action", "member": "amir", "quote": "Amir: shared benchmark of 4,000+ token documents"}
+      ],
+      "modules": [
+        {"op": "update", "module": "self-attn-encoder", "note": "Best accuracy up to 2,000 tokens; out of memory at 4,000 tokens on 12 GB cards.", "quote": "At 4,000 tokens it runs out of memory on our 12 GB cards"},
+        {"op": "update", "module": "recurrent-memory", "note": "Handles 4,000 tokens and streams at constant memory; 4 points below the Transformer at 2,000.", "quote": "handles 4,000 tokens and the streaming transcripts at constant memory"},
+        {"op": "add", "module": "benchmark", "title": "4,000+ token benchmark", "note": "Shared evaluation for whichever agenda wins.", "owner": "amir", "status": "proposed", "inputs": ["answer"], "quote": "Amir: shared benchmark of 4,000+ token documents"}
       ]
     }
   ]
