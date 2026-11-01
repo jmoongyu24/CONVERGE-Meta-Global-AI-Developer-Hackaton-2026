@@ -182,13 +182,11 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 | workspaces | id, name, description | 팀(연구실) 단위. 아래 모든 table이 workspace_id를 가진다 |
 | members | id, name, role, aliases | 교수·학생. aliases는 회의록에서 부르는 이름 ("Prof", "D") |
 | sources | id, kind(meeting·note), occurred_at, title, text, url | 회의록·개인 아이디어 노트 |
-| ideas | id, title, status, owner_id, canvas(json), born_source_id | 현재 상태의 아이디어 |
-| idea_versions | idea_id, source_id, title, summary | 회의별 아이디어 변화 이력 (changelog) |
-| idea_edges | from_id, to_id, type(branch·merge·related·conflict), source_id, rationale | lineage |
-| mentions | id, source_id, idea_id, member_id, stance, claim, quote, line, verified | 누가 무엇을 말했나 |
-| items | id, source_id, kind(question·decision·action), text, member_id, idea_id, resolved_source_id | 질문·결정·할 일 |
+| analyses | source_id, origin(gold·llm), analysis(json) | 회의별 분석 결과(`SourceAnalysis`). 정답(gold)과 LLM 출력을 나란히 보관 |
 | converge_sessions | id, idea_ids, transcript(json), proposals(json), adopted | 수렴 세션 기록 |
 | llm_cache | key, response, model, tokens_in, tokens_out, cost, created_at | 응답 cache + 비용 로그 |
+
+아이디어·version 이력·edge·stance는 저장하지 않고, analyses를 시간순으로 replay해서 매번 계산한다 (`pipeline.build_state`). git이 commit을 쌓아 tree를 만드는 방식과 같아서 time slider가 어느 시점이든 정확하고, gold와 LLM 출력을 같은 코드로 비교할 수 있다.
 
 ### 4.5 Model routing과 예상 비용
 
@@ -284,7 +282,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
   - 시나리오 3개 (모두 PhD 2명이 주도권 경합, MS 1명이 한쪽을 지원): self-organizing agents (11회, 2026), long-term dependency RNN → LSTM → GRU → Transformer (10회, 2014~2017), sim-to-real (7회, 2026). 상세는 [data/demo/README.md](../data/demo/README.md)
 - 정답(gold.json)은 F2 출력과 **같은 schema**로 만든다 → key 없이 F3~F5를 개발하고, key가 오면 그대로 F7 eval에 쓴다
 - (선택) demo 회의록을 Notion 테스트 workspace에 올리는 script. 영상의 "Notion 연결" 장면용
-- **DoD**: demo 10회 + 본인 Notion 테스트 페이지 1개 import 성공
+- **DoD**: demo 3개 시나리오 import 완료 (11/1). Notion은 Markdown ↔ block 변환을 28개 회의록 round trip test로 검증했고, 실제 연동은 test page를 지정받아 `push-notion` → `notion` import로 확인한다
 
 ### F2. Extract & Link · 11/2(월) 오후 · 4h
 
@@ -293,12 +291,13 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - key가 늦게 오면: prompt·schema·검증 코드를 먼저 작성해 두고, key가 오면 실행·튜닝만 한다
 - **DoD**: demo dataset 전체 처리 → ideas·mentions·edges 생성, quote 검증 통과율 ≥ 95%, 재실행 시 전부 cache hit (비용 0)
 
-### F3. Lineage & Insights + API · 11/2(월) 밤 ~ 11/3(화) 오전 · 3h
+### F3. Lineage & Insights + API · 완료 (11/1)
 
-- 시점별 상태 재구성 (`as_of`), dormant 감지, member profile, stance matrix, "지난 회의 이후 변화" digest, 미해결 질문 추적
-- `main.py`: `/api/sources`, `/api/graph?as_of=`, `/api/ideas/{id}`, `/api/team`, `/api/ingest`, `/api/process` (SSE 진행률)
-- key 도착 전에는 gold를 pipeline 출력 대신 넣어서 engine을 구동한다
-- **DoD**: Swagger에서 전체 endpoint 확인, pytest (quote 검증·ops 적용·snapshot) 통과
+- `pipeline.build_state`: analyses를 시간순으로 replay해서 아이디어(상태·version 이력), branch·merge edge, stance matrix(member × idea 최신 입장), 해당 회의의 digest(적용된 ops·입장 변화·items), issues(검증에 실패해 버린 항목)를 만든다
+- dormant: active인데 3회 연속 언급이 없는 아이디어를 자동 표시
+- API: `GET /api/workspaces`, `GET /api/workspaces/{id}/state?as_of=&origin=gold|llm`, `GET /api/workspaces/{id}/sources/{source_id}` (원문)
+- member profile·의견이 갈리는 구간은 UI가 stance matrix에서 바로 계산한다. `/api/ingest`·`/api/process`(SSE)는 LLM 처리와 함께 F2로 옮긴다
+- **DoD**: Swagger 확인, pytest 17개 통과 (lineage·time travel·dormancy·입장 변화·잘못된 claim 차단·Notion round trip·API)
 
 ### F4. Lineage View + Idea Canvas · 11/3(화) · 5h
 

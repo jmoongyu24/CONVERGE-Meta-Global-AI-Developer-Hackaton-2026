@@ -26,8 +26,9 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 | frontend 실행 (dev) | `cd frontend && npm run dev` → http://localhost:5173 (`/api`는 :8000으로 proxy) |
 | 배포용 build | `cd frontend && npm run build` → FastAPI가 `frontend/dist`를 http://localhost:8000 에서 serve |
 | test | `cd backend && uv run pytest` |
-| demo 데이터 적재 | `cd backend && uv run python -m app.ingest demo` → `data/converge.db` |
+| demo 데이터 적재 | `cd backend && uv run python -m app.ingest demo` → `data/converge.db` (회의록 + gold 분석) |
 | Notion import | `cd backend && uv run python -m app.ingest notion <page_id> --team <team.json>` |
+| demo 회의록을 Notion에 복사 | `cd backend && uv run python -m app.ingest push-notion <page_id> [--scenario <name>]` |
 | Python lint·format | `cd backend && uv run ruff format . && uv run ruff check --fix .` |
 | TS lint·format | `cd frontend && npm run check` |
 
@@ -37,19 +38,19 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 ## Git 규칙
 
 - **Branch**: `main`은 항상 동작하는 상태로 유지한다. 작업은 `<type>/<feature-id>-<short-desc>` branch에서 한다. (예: `feat/f2-extract-link`, `fix/f4-slider-lag`, `docs/plan`)
-- **Commit message**: Conventional Commits
+- **Commit message**: `<type>: <subject>` + 파일별 본문. type 옆에 괄호(scope)는 쓰지 않는다.
 
   ```
-  <type>(<scope>): <subject>
+  feat: add lineage engine and state API driven by gold analyses
 
-  <body: 무엇을, 왜 (선택)>
+  - backend/app/pipeline.py: replay analyses in time order into ideas, edges and stances
+  - backend/app/main.py: add GET /api/workspaces/{id}/state
   ```
 
   - type: `feat` 기능 · `fix` 버그 · `refactor` · `perf` · `test` · `docs` · `style` · `chore` · `build` · `ci`
-  - scope: `ingest` · `pipeline` · `converge` · `api` · `web` · `eval` · `infra` (생략 가능)
-  - subject: English, 명령형 현재시제, 소문자로 시작, 마침표 없이 72자 이내
-  - 예: `feat(pipeline): verify extracted quotes against source lines`
-  - 한 commit = 한 가지 논리적 변경
+  - subject: 무엇을 했는지 구체적으로 (English, 명령형, 소문자 시작, 마침표 없음, 72자 이내). "update docs"처럼 추상적으로 쓰지 않는다.
+  - 본문: 작업한 파일마다 `- <path>: <무엇을 바꿨는지>`를 빠짐없이 한 줄씩 쓴다.
+  - 한 commit = 한 가지 논리적 변경. 사용자가 직접 commit하므로 `git commit -F - <<'EOF'` 형태로 복사해 쓸 수 있게 제시한다.
 - **PR**: 기능(F#) 1개 = PR 1개. 제목은 commit 형식, 본문은 What / Why / How to test / Screenshot. squash merge 후 branch 삭제.
 - **Tag**: `v0.1.0` (backend MVP) · `v0.2.0` (UI) · `v1.0.0` (제출본)
 
