@@ -9,6 +9,8 @@ Stance = Literal["propose", "support", "refine", "question", "challenge", "infor
 OpKind = Literal["new", "update", "branch", "merge", "park", "drop"]
 ItemKind = Literal["question", "decision", "action", "consensus"]
 IdeaStatus = Literal["active", "dormant", "parked", "dropped"]
+ModuleOpKind = Literal["add", "update", "remove"]
+ModuleStatus = Literal["proposed", "adopted"]
 
 
 class Member(BaseModel):
@@ -25,22 +27,32 @@ class Workspace(BaseModel):
     name: str
     description: str = ""
     members: list[Member]
+    notion_page_id: str | None = None  # Notion page that edits made in Converge are written to
 
 
 class SourceMeta(BaseModel):
     """A record without its text: enough for timelines and lists."""
 
     id: str
-    kind: Literal["meeting", "note"] = "meeting"
+    kind: Literal["meeting", "note", "session"] = "meeting"  # session: edits made in Converge
     occurred_at: datetime
     title: str
     url: str | None = None
 
 
 class Source(SourceMeta):
-    """One record the team wrote, e.g. a meeting note."""
+    """One record the team wrote, e.g. a meeting note. Images in it are Markdown image lines
+    pointing at `assets/<name>`, stored next to the text as Assets."""
 
     text: str
+
+
+class Asset(BaseModel):
+    """An image from a record, e.g. a whiteboard photo pasted into a Notion page."""
+
+    name: str
+    media_type: str
+    data: bytes
 
 
 # --- Analysis of one source ----------------------------------------------------
@@ -77,6 +89,23 @@ class Item(BaseModel):
     quote: str
     member: str | None = None
     idea: str | None = None
+    module: str | None = None
+
+
+class ModuleOp(BaseModel):
+    """A change to the team's architecture: one module (a layer, component, or stage) and the
+    modules that feed into it. On update, None keeps a field and "" clears it."""
+
+    op: ModuleOpKind
+    module: str  # module id; `add` introduces it
+    title: str | None = None  # required for add
+    note: str | None = None  # what the module does, in one line
+    owner: str | None = None  # member in charge of building it
+    status: ModuleStatus | None = None  # add defaults to "proposed"
+    inputs: list[str] | None = None  # modules that feed this one; replaces the list when given
+    group: str | None = None  # enclosing module, e.g. the encoder block holding its layers
+    idea: str | None = None  # the research idea this module implements
+    quote: str
 
 
 class SourceAnalysis(BaseModel):
@@ -84,6 +113,7 @@ class SourceAnalysis(BaseModel):
     ops: list[IdeaOp] = Field(default_factory=list)
     mentions: list[Mention] = Field(default_factory=list)
     items: list[Item] = Field(default_factory=list)
+    modules: list[ModuleOp] = Field(default_factory=list)
 
 
 class Gold(BaseModel):
@@ -148,13 +178,36 @@ class StanceShift(BaseModel):
     after: Stance
 
 
+class LocatedModuleOp(ModuleOp):
+    source: str
+    line: int
+
+
+class ModuleView(BaseModel):
+    """A module as it stands after replay; removed modules stay listed so the UI can show
+    what a meeting took out."""
+
+    id: str
+    title: str
+    note: str
+    owner: str | None
+    status: Literal["proposed", "adopted", "removed"]
+    inputs: list[str]
+    group: str | None
+    idea: str | None
+    born: str  # source where the module first appeared
+    changed: str  # latest source that changed it
+    history: list[LocatedModuleOp]
+
+
 class Digest(BaseModel):
-    """What one source changed: applied idea ops, stance shifts, and its items."""
+    """What one source changed: applied idea ops, stance shifts, its items, and module changes."""
 
     source: str
     ops: list[IdeaOp] = Field(default_factory=list)
     shifts: list[StanceShift] = Field(default_factory=list)
     items: list[LocatedItem] = Field(default_factory=list)
+    modules: list[LocatedModuleOp] = Field(default_factory=list)
 
 
 class LineageState(BaseModel):
@@ -166,5 +219,33 @@ class LineageState(BaseModel):
     mentions: list[LocatedMention]
     items: list[LocatedItem]
     stances: list[StanceCell]
+    modules: list[ModuleView]
     digest: Digest
     issues: list[str]  # entries dropped or repaired because a quote or reference did not check out
+
+
+# --- Edits made in the UI ------------------------------------------------------
+
+
+class EditRequest(BaseModel):
+    """One change a member makes in the architecture view. The server writes it as a line of
+    the day's session note, so an edit is quoted evidence like anything said in a meeting."""
+
+    member: str
+    action: Literal["add", "update", "remove", "question", "action", "support", "challenge"]
+    module: str | None = None  # target module; add derives a new id from the title
+    title: str | None = None
+    note: str | None = None
+    owner: str | None = None
+    status: ModuleStatus | None = None
+    inputs: list[str] | None = None
+    group: str | None = None
+    idea: str | None = None
+    text: str = ""  # the member's own words: a reason, question, or comment
+
+
+class EditResult(BaseModel):
+    source: str  # the session note the edit was written to
+    line: str
+    module: str  # the module the edit changed or added
+    notion: Literal["synced", "failed", "off"]

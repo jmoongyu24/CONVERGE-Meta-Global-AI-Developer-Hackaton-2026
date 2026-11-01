@@ -1,6 +1,7 @@
-"""SQLite persistence: one file, data/converge.db, holds every workspace."""
+"""SQLite persistence: one file, data/converge.db by default, holds every workspace."""
 
 import json
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -8,15 +9,17 @@ from datetime import datetime
 from pathlib import Path
 
 from app import REPO_ROOT
-from app.models import Member, Source, SourceAnalysis, Workspace
+from app.models import Asset, Member, Source, SourceAnalysis, Workspace
 
-DB_PATH = REPO_ROOT / "data" / "converge.db"
+# CONVERGE_DB points a server at another database, e.g. a scratch copy for tests or demos.
+DB_PATH = Path(os.environ.get("CONVERGE_DB") or REPO_ROOT / "data" / "converge.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS workspaces (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT ''
+    id             TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,
+    description    TEXT NOT NULL DEFAULT '',
+    notion_page_id TEXT
 );
 CREATE TABLE IF NOT EXISTS members (
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -46,6 +49,14 @@ CREATE TABLE IF NOT EXISTS analyses (
     PRIMARY KEY (workspace_id, source_id, origin),
     FOREIGN KEY (workspace_id, source_id) REFERENCES sources (workspace_id, id) ON DELETE CASCADE
 );
+-- Images the sources embed; a source refers to one as `assets/<name>`.
+CREATE TABLE IF NOT EXISTS assets (
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name         TEXT NOT NULL,
+    media_type   TEXT NOT NULL,
+    data         BLOB NOT NULL,
+    PRIMARY KEY (workspace_id, name)
+);
 """
 
 
@@ -58,6 +69,9 @@ def connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    # Databases created before workspaces could be linked to Notion lack the column.
+    if "notion_page_id" not in {row[1] for row in conn.execute("PRAGMA table_info(workspaces)")}:
+        conn.execute("ALTER TABLE workspaces ADD COLUMN notion_page_id TEXT")
     try:
         yield conn
         conn.commit()
@@ -71,12 +85,14 @@ def connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
 def save_workspace(conn: sqlite3.Connection, workspace: Workspace) -> None:
     """Insert or update a workspace and replace its member list."""
     # An upsert, not INSERT OR REPLACE: a replace deletes the row first, and the
-    # cascade would wipe the workspace's sources with it.
+    # cascade would wipe the workspace's sources with it. Reloading a team file without a
+    # Notion page keeps the link made earlier.
     conn.execute(
-        """INSERT INTO workspaces (id, name, description) VALUES (?, ?, ?)
+        """INSERT INTO workspaces (id, name, description, notion_page_id) VALUES (?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET name = excluded.name,
-               description = excluded.description""",
-        (workspace.id, workspace.name, workspace.description),
+               description = excluded.description,
+               notion_page_id = coalesce(excluded.notion_page_id, workspaces.notion_page_id)""",
+        (workspace.id, workspace.name, workspace.description, workspace.notion_page_id),
     )
     conn.execute("DELETE FROM members WHERE workspace_id = ?", (workspace.id,))
     conn.executemany(
@@ -97,6 +113,7 @@ def _workspace(conn: sqlite3.Connection, row: sqlite3.Row) -> Workspace:
             Member(id=m["id"], name=m["name"], role=m["role"], aliases=json.loads(m["aliases"]))
             for m in members
         ],
+        notion_page_id=row["notion_page_id"],
     )
 
 
@@ -108,6 +125,28 @@ def list_workspaces(conn: sqlite3.Connection) -> list[Workspace]:
 def get_workspace(conn: sqlite3.Connection, workspace_id: str) -> Workspace | None:
     row = conn.execute("SELECT * FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
     return _workspace(conn, row) if row else None
+
+
+def link_notion(conn: sqlite3.Connection, workspace_id: str, page_id: str | None) -> bool:
+    """Write the workspace's future edits to this Notion page (None unlinks it)."""
+    cursor = conn.execute(
+        "UPDATE workspaces SET notion_page_id = ? WHERE id = ?", (page_id, workspace_id)
+    )
+    return cursor.rowcount == 1
+
+
+def revision(conn: sqlite3.Connection, workspace_id: str) -> str:
+    """A token that changes whenever the workspace's sources or analyses change, so open
+    browsers can tell that a teammate edited something."""
+    row = conn.execute(
+        """SELECT (SELECT count(*) || '.' || coalesce(sum(length(text)), 0)
+                   FROM sources WHERE workspace_id = :id)
+               || '/' ||
+               (SELECT count(*) || '.' || coalesce(sum(length(analysis)), 0)
+                   FROM analyses WHERE workspace_id = :id)""",
+        {"id": workspace_id},
+    ).fetchone()
+    return row[0]
 
 
 # --- Sources -------------------------------------------------------------------
@@ -178,3 +217,22 @@ def list_analyses(
         (workspace_id, origin),
     ).fetchall()
     return {row["source_id"]: SourceAnalysis.model_validate_json(row["analysis"]) for row in rows}
+
+
+# --- Assets --------------------------------------------------------------------
+
+
+def save_assets(conn: sqlite3.Connection, workspace_id: str, assets: list[Asset]) -> None:
+    conn.executemany(
+        """INSERT INTO assets (workspace_id, name, media_type, data) VALUES (?, ?, ?, ?)
+           ON CONFLICT (workspace_id, name)
+           DO UPDATE SET media_type = excluded.media_type, data = excluded.data""",
+        [(workspace_id, a.name, a.media_type, a.data) for a in assets],
+    )
+
+
+def get_asset(conn: sqlite3.Connection, workspace_id: str, name: str) -> Asset | None:
+    row = conn.execute(
+        "SELECT * FROM assets WHERE workspace_id = ? AND name = ?", (workspace_id, name)
+    ).fetchone()
+    return Asset(name=row["name"], media_type=row["media_type"], data=row["data"]) if row else None

@@ -1,19 +1,33 @@
 import { Pause, Play } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { fetchTimeline, fetchWorkspaces, type LineageState, type Workspace } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArchitectureView, ModuleForm, ModulePanel } from "./ArchitectureView";
+import {
+  type EditRequest,
+  fetchRevision,
+  fetchTimeline,
+  fetchWorkspaces,
+  type LineageState,
+  postEdit,
+  type Workspace,
+} from "./api";
 import { LineageView } from "./LineageView";
 import { TeamView } from "./TeamView";
 import { DigestList, formatDate, IdeaPanel, MemberLegend, memberColors, SourceViewer } from "./ui";
 
 const PLAY_STEP_MS = 1400;
+const POLL_MS = 5000; // how often open browsers look for a teammate's edits
 const VIEWS = [
   { id: "lineage", label: "Lineage" },
   { id: "team", label: "Team" },
+  { id: "architecture", label: "Architecture" },
 ] as const;
 type View = (typeof VIEWS)[number]["id"];
 
-// Deep links: ?ws=<workspace>&at=<source>&idea=<idea>&view=team reopen the same screen.
+// Deep links: ?ws=<workspace>&at=<source>&idea=<idea>&module=<module>&view=architecture
+// reopen the same screen, and &quote=<source>:<line> opens the note behind a claim.
 const initial = new URLSearchParams(window.location.search);
+const initialView = VIEWS.find((v) => v.id === initial.get("view"))?.id ?? "lineage";
+const initialQuote = /^(.+):(\d+)$/.exec(initial.get("quote") ?? "");
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -21,12 +35,20 @@ export default function App() {
   const [timeline, setTimeline] = useState<LineageState[]>([]);
   const [position, setPosition] = useState(0);
   const [selected, setSelected] = useState(initial.get("idea"));
-  const [view, setView] = useState<View>(initial.get("view") === "team" ? "team" : "lineage");
+  const [module, setModule] = useState(initial.get("module"));
+  const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<View>(initialView);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [quote, setQuote] = useState<{ source: string; line: number } | null>(null);
+  const [quote, setQuote] = useState<{ source: string; line: number } | null>(
+    initialQuote && { source: initialQuote[1], line: Number(initialQuote[2]) },
+  );
+  const [notice, setNotice] = useState<string | null>(null);
+  const [actingAs, setActingAs] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [reloads, setReloads] = useState(0);
   const linkedSource = useRef(initial.get("at"));
+  const revision = useRef<string | null>(null);
 
   useEffect(() => {
     fetchWorkspaces().then(
@@ -38,15 +60,17 @@ export default function App() {
     );
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `reloads` asks for a fresh fetch
   useEffect(() => {
     if (!workspaceId) return;
     let stale = false;
     setLoading(true);
-    fetchTimeline(workspaceId).then(
-      (states) => {
+    Promise.all([fetchTimeline(workspaceId), fetchRevision(workspaceId)]).then(
+      ([states, latest]) => {
         if (stale) return;
         const linked = states.findIndex((s) => s.as_of === linkedSource.current);
         linkedSource.current = null;
+        revision.current = latest;
         setTimeline(states);
         setPosition(linked >= 0 ? linked : states.length - 1);
         setLoading(false);
@@ -56,9 +80,46 @@ export default function App() {
     return () => {
       stale = true;
     };
-  }, [workspaceId]);
+  }, [workspaceId, reloads]);
 
   const last = timeline.length - 1;
+  const state = timeline[position];
+
+  /** Fetch again, staying on the same meeting unless the latest one was showing. */
+  const reload = useCallback(
+    (stay: boolean) => {
+      linkedSource.current = stay ? (state?.as_of ?? null) : null;
+      setReloads((n) => n + 1);
+    },
+    [state],
+  );
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const timer = window.setInterval(async () => {
+      const latest = await fetchRevision(workspaceId).catch(() => revision.current);
+      if (latest && revision.current && latest !== revision.current) {
+        revision.current = latest;
+        setNotice("A teammate changed something: updated.");
+        reload(position !== last);
+      }
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [workspaceId, reload, position, last]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const stored = window.localStorage.getItem(`converge.actingAs.${workspaceId}`);
+    const members = workspaces.find((w) => w.id === workspaceId)?.members ?? [];
+    setActingAs(members.some((m) => m.id === stored) ? (stored ?? "") : (members[0]?.id ?? ""));
+  }, [workspaceId, workspaces]);
+
   useEffect(() => {
     if (!playing) return;
     if (position >= last) {
@@ -69,22 +130,58 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [playing, position, last]);
 
-  const state = timeline[position];
-
   useEffect(() => {
     if (!state || state.workspace.id !== workspaceId) return;
     const params = new URLSearchParams({ ws: state.workspace.id, at: state.as_of });
     if (selected) params.set("idea", selected);
+    if (module) params.set("module", module);
     if (view !== "lineage") params.set("view", view);
+    if (quote) params.set("quote", `${quote.source}:${quote.line}`);
     window.history.replaceState(null, "", `?${params}`);
-  }, [workspaceId, state, selected, view]);
+  }, [workspaceId, state, selected, module, view, quote]);
 
   if (error) return <main className="p-8 text-sm">Could not reach the API: {error}</main>;
   if (!state) return <main className="p-8 text-sm text-muted">Loading lineage…</main>;
 
   const colors = memberColors(state.workspace);
   const current = state.sources[position];
+  const editable = position === last;
   const openQuote = (source: string, line: number) => setQuote({ source, line });
+  const selectIdea = (id: string) => {
+    setSelected(id);
+    setModule(null);
+    setAdding(false);
+  };
+  const selectModule = (id: string) => {
+    setModule(id);
+    setAdding(false);
+    setView("architecture");
+  };
+  const chooseActingAs = (memberId: string) => {
+    setActingAs(memberId);
+    window.localStorage.setItem(`converge.actingAs.${state.workspace.id}`, memberId);
+  };
+  const edit = async (change: Omit<EditRequest, "member">) => {
+    try {
+      const result = await postEdit(state.workspace.id, { ...change, member: actingAs });
+      setNotice(
+        `Saved to the session note${
+          result.notion === "synced"
+            ? " and written to Notion"
+            : result.notion === "failed"
+              ? " (Notion write failed)"
+              : ""
+        }.`,
+      );
+      setAdding(false);
+      setModule(change.action === "remove" ? null : result.module || null);
+      revision.current = null; // our own change: the reload records the new revision
+      reload(false);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
   const togglePlay = () => {
     if (playing) {
       setPlaying(false);
@@ -93,6 +190,52 @@ export default function App() {
       setPlaying(true);
     }
   };
+  const collaboration = { editable, actingAs, onActingAs: chooseActingAs, onEdit: edit };
+
+  let panel = (
+    <div className="space-y-3 text-sm text-ink-2">
+      <h2 className="text-base font-semibold text-ink">
+        {view === "architecture" ? "Pick a module" : "Pick an idea"}
+      </h2>
+      <p>
+        {view === "architecture"
+          ? "Click a box to see who builds it, how it is wired, what the team says about it, and every change with its quote. At the latest meeting you can reassign it, comment, or propose new modules."
+          : "Click a lane or a dot to see who backs the idea, who challenges it, the open questions, and the original quote behind every claim."}
+      </p>
+      <p className="text-muted">
+        {state.ideas.length} ideas so far ·{" "}
+        {state.ideas.filter((i) => i.status === "active").length} active ·{" "}
+        {state.modules.filter((m) => m.status !== "removed").length} modules ·{" "}
+        {state.mentions.length} attributed quotes
+      </p>
+    </div>
+  );
+  if (view === "architecture" && adding) {
+    panel = <ModuleForm state={state} onCancel={() => setAdding(false)} {...collaboration} />;
+  } else if (view === "architecture" && module) {
+    panel = (
+      <ModulePanel
+        key={module}
+        state={state}
+        moduleId={module}
+        colors={colors}
+        onSelectModule={selectModule}
+        onSelectIdea={selectIdea}
+        onOpenQuote={openQuote}
+        {...collaboration}
+      />
+    );
+  } else if (selected) {
+    panel = (
+      <IdeaPanel
+        state={state}
+        ideaId={selected}
+        colors={colors}
+        onSelectIdea={selectIdea}
+        onOpenQuote={openQuote}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -110,6 +253,8 @@ export default function App() {
             onChange={(event) => {
               setWorkspaceId(event.target.value);
               setSelected(null);
+              setModule(null);
+              setAdding(false);
               setPlaying(false);
             }}
             className="rounded-lg border border-hairline bg-surface px-3 py-1.5 text-sm text-ink"
@@ -153,15 +298,30 @@ export default function App() {
             ))}
           </div>
 
-          {view === "lineage" ? (
-            <LineageView state={state} colors={colors} selected={selected} onSelect={setSelected} />
-          ) : (
+          {view === "lineage" && (
+            <LineageView state={state} colors={colors} selected={selected} onSelect={selectIdea} />
+          )}
+          {view === "team" && (
             <TeamView
               state={state}
               colors={colors}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={selectIdea}
               onOpenQuote={openQuote}
+            />
+          )}
+          {view === "architecture" && (
+            <ArchitectureView
+              state={state}
+              previous={timeline[position - 1]}
+              colors={colors}
+              selected={module}
+              editable={editable}
+              onSelect={selectModule}
+              onAdd={() => {
+                setAdding(true);
+                setModule(null);
+              }}
             />
           )}
 
@@ -189,7 +349,9 @@ export default function App() {
             />
             <div className="w-72 shrink-0 text-right">
               <p className="text-xs text-muted">
-                {formatDate(current.occurred_at)} · meeting {position + 1} of {timeline.length}
+                {formatDate(current.occurred_at)} ·{" "}
+                {current.kind === "session" ? "session" : "meeting"} {position + 1} of{" "}
+                {timeline.length}
               </p>
               <p className="truncate text-sm font-medium" title={current.title}>
                 {current.title}
@@ -201,7 +363,7 @@ export default function App() {
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
               What changed in this meeting
             </h3>
-            <DigestList state={state} onSelectIdea={setSelected} />
+            <DigestList state={state} onSelectIdea={selectIdea} onSelectModule={selectModule} />
           </div>
           {state.issues.length > 0 && (
             <p className="mt-3 text-xs text-muted">
@@ -212,30 +374,18 @@ export default function App() {
         </section>
 
         <aside className="rounded-xl border border-hairline bg-surface p-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
-          {selected ? (
-            <IdeaPanel
-              state={state}
-              ideaId={selected}
-              colors={colors}
-              onSelectIdea={setSelected}
-              onOpenQuote={openQuote}
-            />
-          ) : (
-            <div className="space-y-3 text-sm text-ink-2">
-              <h2 className="text-base font-semibold text-ink">Pick an idea</h2>
-              <p>
-                Click a lane or a dot to see who backs the idea, who challenges it, the open
-                questions, and the original quote behind every claim.
-              </p>
-              <p className="text-muted">
-                {state.ideas.length} ideas so far ·{" "}
-                {state.ideas.filter((i) => i.status === "active").length} active ·{" "}
-                {state.mentions.length} attributed quotes
-              </p>
-            </div>
-          )}
+          {panel}
         </aside>
       </main>
+
+      {notice && (
+        <p
+          role="status"
+          className="fixed right-6 bottom-6 rounded-lg bg-ink px-4 py-2 text-sm text-surface shadow-lg"
+        >
+          {notice}
+        </p>
+      )}
 
       {quote && workspaceId && (
         <SourceViewer

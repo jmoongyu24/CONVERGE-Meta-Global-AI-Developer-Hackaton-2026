@@ -4,6 +4,7 @@
 import { X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
+  assetUrl,
   fetchSource,
   type IdeaStatus,
   type LineageState,
@@ -171,17 +172,21 @@ const OP_TAG: Record<OpKind, string> = {
 };
 const ITEM_TAG = { consensus: "AGREED", decision: "DECIDED", question: "QUESTION" } as const;
 
-/** What the selected meeting changed: idea ops, stance shifts, agreements and decisions. */
+/** What the selected meeting changed: idea ops, architecture changes, stance shifts,
+ * agreements and decisions. */
 export function DigestList({
   state,
   onSelectIdea,
+  onSelectModule,
 }: {
   state: LineageState;
   onSelectIdea: (id: string) => void;
+  onSelectModule: (id: string) => void;
 }) {
   const { name, title } = lookup(state);
   const link = (id: string) => <IdeaLink id={id} label={title(id)} onSelect={onSelectIdea} />;
   const entries: { key: string; tag: string; body: ReactNode }[] = [];
+  const modules = new Map(state.modules.map((m) => [m.id, m]));
 
   for (const op of state.digest.ops) {
     const parents = op.parents.map((p) => title(p)).join(" + ");
@@ -198,6 +203,37 @@ export function DigestList({
         link(op.idea)
       );
     entries.push({ key: `op-${op.op}-${op.idea}`, tag: OP_TAG[op.op], body });
+  }
+  // One entry per module, however many of its fields the meeting touched.
+  for (const id of new Set(state.digest.modules.map((op) => op.module))) {
+    const ops = state.digest.modules.filter((op) => op.module === id);
+    const label = (
+      <IdeaLink id={id} label={modules.get(id)?.title ?? id} onSelect={onSelectModule} />
+    );
+    const added = ops.find((op) => op.op === "add");
+    const owner = [...ops].reverse().find((op) => op.owner)?.owner ?? null;
+    const changes = [
+      owner && !added ? `now built by ${name(owner)}` : "",
+      ops.some((op) => op.op === "update" && op.status === "adopted") ? "adopted" : "",
+      ops.some((op) => op.op === "update" && op.inputs) ? "rewired" : "",
+      ops.some((op) => op.op === "update" && (op.title || op.note !== null)) ? "redescribed" : "",
+    ].filter(Boolean);
+    const [tag, body] = ops.some((op) => op.op === "remove")
+      ? ["REMOVED", <>{label} left the architecture</>]
+      : added
+        ? [
+            "MODULE",
+            <>
+              {label} added{owner ? `, built by ${name(owner)}` : ""}
+            </>,
+          ]
+        : [
+            changes.includes("adopted") ? "ADOPTED" : owner ? "OWNER" : "CHANGED",
+            <>
+              {label}: {changes.join(", ") || "updated"}
+            </>,
+          ];
+    entries.push({ key: `module-${id}`, tag, body });
   }
   for (const shift of state.digest.shifts) {
     entries.push({
@@ -398,6 +434,81 @@ interface SourceViewerProps {
   onClose: () => void;
 }
 
+const TABLE_SEPARATOR = /^:?-{3,}:?$/;
+const IMAGE_LINE = /^!\[(.*)\]\(([^()\s]+)\)$/;
+const cellsOf = (row: string) =>
+  row
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.trim().replaceAll("\\|", "|"));
+const isSeparator = (row: string) =>
+  row.startsWith("|") && cellsOf(row).every((cell) => TABLE_SEPARATOR.test(cell));
+
+/** One line of a note, drawn the way Notion shows it: tables, images, toggles, sub-pages. */
+function NoteLine({
+  text,
+  next,
+  workspaceId,
+}: {
+  text: string;
+  next: string | undefined;
+  workspaceId: string;
+}) {
+  const content = text.trimStart();
+  const indent = { paddingLeft: `${(text.length - content.length) * 9}px` };
+  const image = IMAGE_LINE.exec(content);
+  if (image) {
+    return (
+      <figure style={indent} className="py-1">
+        <img
+          src={assetUrl(workspaceId, image[2])}
+          alt={image[1]}
+          className="max-h-80 rounded-lg border border-hairline bg-surface"
+        />
+        <figcaption className="mt-1 text-xs text-muted">{image[1]}</figcaption>
+      </figure>
+    );
+  }
+  if (content.startsWith("|")) {
+    const cells = cellsOf(content);
+    const header = next !== undefined && isSeparator(next.trim());
+    return (
+      <div
+        style={{ ...indent, gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}
+        className={`grid border-b border-hairline ${header ? "font-semibold" : ""}`}
+      >
+        {cells.map((cell, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: cells have no identity but their column
+          <span key={index} className="px-2 py-0.5">
+            {cell}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  const heading = /^(#{1,3}) (.*)$/.exec(content);
+  if (heading) {
+    const size = ["text-lg", "text-base", "text-[14px]"][heading[1].length - 1];
+    return <p className={`font-semibold ${size}`}>{heading[2]}</p>;
+  }
+  const marks: [RegExp, string, string][] = [
+    [/^▸ /, "▸", "font-medium"],
+    [/^📄 /, "📄", "font-semibold"],
+    [/^- \[ \] /, "☐", ""],
+    [/^- \[x\] /, "☑", ""],
+    [/^- /, "•", ""],
+    [/^> /, "│", "italic text-ink-2"],
+  ];
+  const mark = marks.find(([pattern]) => pattern.test(content));
+  return (
+    <p style={indent} className={`whitespace-pre-wrap ${mark?.[2] ?? ""}`}>
+      {mark && <span className="mr-2 text-muted">{mark[1]}</span>}
+      {mark ? content.replace(mark[0], "") : content || "\u00a0"}
+    </p>
+  );
+}
+
 /** The original note with the quoted line highlighted: every claim can be checked at its source. */
 export function SourceViewer({ workspaceId, sourceId, line, onClose }: SourceViewerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -454,17 +565,25 @@ export function SourceViewer({ workspaceId, sourceId, line, onClose }: SourceVie
         </div>
       </header>
       {error && <p className="px-5 py-4 text-sm">{error}</p>}
-      <ol className="max-h-[65vh] overflow-auto py-3 font-mono text-[12.5px] leading-6">
-        {lines.map(({ number, text }) => (
-          <li
-            key={number}
-            ref={number === line ? target : undefined}
-            className={`flex gap-4 px-5 ${number === line ? "bg-amber-100" : ""}`}
-          >
-            <span className="w-8 shrink-0 select-none text-right text-muted">{number}</span>
-            <span className="whitespace-pre-wrap">{text}</span>
-          </li>
-        ))}
+      <ol className="max-h-[70vh] overflow-auto py-3 text-[13.5px] leading-6">
+        {lines.map(({ number, text }) =>
+          isSeparator(text.trim()) ? (
+            <li key={number} aria-hidden="true" className="h-1" />
+          ) : (
+            <li
+              key={number}
+              ref={number === line ? target : undefined}
+              className={`flex gap-4 px-5 ${number === line ? "bg-amber-100" : ""}`}
+            >
+              <span className="w-8 shrink-0 select-none pt-px text-right font-mono text-[11px] text-muted">
+                {number}
+              </span>
+              <div className="min-w-0 flex-1">
+                <NoteLine text={text} next={lines[number]?.text} workspaceId={workspaceId} />
+              </div>
+            </li>
+          ),
+        )}
       </ol>
     </dialog>
   );
