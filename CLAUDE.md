@@ -29,11 +29,13 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 | demo 데이터 적재 | `cd backend && uv run python -m app.ingest demo` → `data/converge.db` (회의록 + gold 분석) |
 | Notion import | `cd backend && uv run python -m app.ingest notion <page_id> --team <team.json>` |
 | demo 회의록을 Notion에 복사 | `cd backend && uv run python -m app.ingest push-notion <page_id> [--scenario <name>]` |
+| 편집을 Notion page에 기록하도록 연결 | `cd backend && uv run python -m app.ingest link-notion <workspace_id> <page_id>` (`""`로 해제) |
 | Python lint·format | `cd backend && uv run ruff format . && uv run ruff check --fix .` |
 | TS lint·format | `cd frontend && npm run check` |
 
 - Node는 WSL 안의 nvm 설치본을 쓴다. Windows 쪽 npm(`/mnt/c/...`)은 쓰지 않는다.
 - 환경 변수는 repo root의 `.env`에 둔다 (템플릿: `.env.example`).
+- 확인·실험용 서버는 `CONVERGE_DB=<임시 파일>`로 별도 DB를 쓴다. 기본 DB(`data/converge.db`)는 사용자의 개발 서버가 쓴다.
 
 ## Git 규칙
 
