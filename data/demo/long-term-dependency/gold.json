@@ -1,0 +1,219 @@
+{
+  "workspace": "long-term-dependency",
+  "analyses": [
+    {
+      "source": "2014-03-12-kickoff",
+      "ops": [
+        {"op": "new", "idea": "vanilla-rnn", "owner": "ruiz", "title": "Vanilla RNN baseline", "summary": "Vanilla RNN language model with truncated BPTT of 35 steps and gradient clipping at norm 5.", "quote": "Baseline for now: a vanilla RNN language model"},
+        {"op": "branch", "idea": "lstm", "parents": ["vanilla-rnn"], "owner": "daniel", "title": "LSTM", "summary": "A gated memory cell that lets error flow back unchanged over many steps.", "quote": "I want to try LSTM"}
+      ],
+      "mentions": [
+        {"member": "ruiz", "idea": "vanilla-rnn", "stance": "propose", "quote": "Baseline for now: a vanilla RNN language model"},
+        {"member": "daniel", "idea": "vanilla-rnn", "stance": "challenge", "quote": "Clipping fixes exploding gradients, not vanishing ones."},
+        {"member": "sora", "idea": "vanilla-rnn", "stance": "challenge", "quote": "A plain RNN will not get there no matter how we tune it."},
+        {"member": "amir", "idea": "vanilla-rnn", "stance": "inform", "quote": "accuracy is at chance for questions whose answer is more than 30 tokens back"},
+        {"member": "daniel", "idea": "lstm", "stance": "propose", "quote": "I want to try LSTM"},
+        {"member": "sora", "idea": "lstm", "stance": "challenge", "quote": "gated units are slow"},
+        {"member": "ruiz", "idea": "lstm", "stance": "support", "quote": "Start with LSTM as the first serious attempt"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "the vanilla RNN cannot carry information over long ranges"},
+        {"kind": "decision", "member": "ruiz", "idea": "lstm", "quote": "Start with LSTM as the first serious attempt"},
+        {"kind": "action", "member": "amir", "idea": "vanilla-rnn", "quote": "Amir: keep the vanilla RNN baseline running"},
+        {"kind": "action", "member": "daniel", "idea": "lstm", "quote": "Daniel: LSTM design for our setup"}
+      ]
+    },
+    {
+      "source": "2014-04-09-group-meeting",
+      "ops": [
+        {"op": "update", "idea": "lstm", "summary": "Input, output and forget gates with 512 cells; the cell state acts as a constant error carousel.", "quote": "input, output and forget gates; 512 cells"}
+      ],
+      "mentions": [
+        {"member": "daniel", "idea": "lstm", "stance": "propose", "quote": "presented the LSTM setup"},
+        {"member": "daniel", "idea": "lstm", "stance": "propose", "quote": "gradients survive hundreds of steps"},
+        {"member": "ruiz", "idea": "lstm", "stance": "support", "quote": "supportive; asked for a direct comparison against the RNN baseline"},
+        {"member": "sora", "idea": "lstm", "stance": "question", "quote": "how much slower per epoch?"},
+        {"member": "daniel", "idea": "lstm", "stance": "inform", "quote": "estimate ~3x slower per step"},
+        {"member": "amir", "idea": "lstm", "stance": "support", "quote": "can implement it on top of the existing Theano code within two weeks"},
+        {"member": "sora", "idea": "lstm", "stance": "challenge", "quote": "I doubt recurrence alone is the long-term answer"}
+      ],
+      "items": [
+        {"kind": "question", "member": "sora", "idea": "lstm", "quote": "how much slower per epoch?"},
+        {"kind": "action", "member": "amir", "idea": "lstm", "quote": "A: LSTM implementation + accuracy-by-distance plot"},
+        {"kind": "action", "member": "daniel", "idea": "lstm", "quote": "D: initialization recipe for the gates"}
+      ]
+    },
+    {
+      "source": "2014-06-18-group-meeting",
+      "ops": [
+        {"op": "update", "idea": "lstm", "summary": "Forget-gate bias initialized to 1 and peephole connections, tried one at a time.", "quote": "initialize the forget-gate bias to 1"},
+        {"op": "park", "idea": "vanilla-rnn", "quote": "the vanilla RNN stays only as a reference baseline"}
+      ],
+      "mentions": [
+        {"member": "amir", "idea": "lstm", "stance": "inform", "quote": "accuracy went from chance (vanilla RNN) to 61%"},
+        {"member": "amir", "idea": "lstm", "stance": "support", "quote": "Amir is convinced this is the right direction"},
+        {"member": "daniel", "idea": "lstm", "stance": "refine", "quote": "initialize the forget-gate bias to 1"},
+        {"member": "ruiz", "idea": "lstm", "stance": "support", "quote": "Prof. Ruiz agreed to try both, one at a time."},
+        {"member": "sora", "idea": "lstm", "stance": "challenge", "quote": "training is 3.2x slower per epoch than the RNN"},
+        {"member": "sora", "idea": "lstm", "stance": "challenge", "quote": "we will hit a wall with any purely sequential model"}
+      ],
+      "items": [
+        {"kind": "decision", "member": "ruiz", "idea": "lstm", "quote": "LSTM is now the main line"},
+        {"kind": "action", "member": "amir", "idea": "lstm", "quote": "Amir runs the forget-bias ablation first"},
+        {"kind": "action", "member": "sora", "quote": "Sora reads up on alternatives to sequential processing"}
+      ]
+    },
+    {
+      "source": "2014-09-17-group-meeting",
+      "ops": [
+        {"op": "update", "idea": "lstm", "summary": "Standard cell: LSTM with forget-gate bias 1.0; peepholes dropped after showing no measurable gain.", "quote": "Peepholes: no measurable gain, dropping them."},
+        {"op": "new", "idea": "soft-attention", "owner": "sora", "title": "Soft attention over encoder states", "summary": "Attend over all hidden states so the model can look back at any position directly and distance stops mattering.", "quote": "Proposal: add soft attention over all hidden states"}
+      ],
+      "mentions": [
+        {"member": "amir", "idea": "lstm", "stance": "inform", "quote": "Forget-gate bias 1.0 helps"},
+        {"member": "daniel", "idea": "lstm", "stance": "propose", "quote": "LSTM with forget bias is our standard cell from now on."},
+        {"member": "sora", "idea": "soft-attention", "stance": "propose", "quote": "Proposal: add soft attention over all hidden states"},
+        {"member": "daniel", "idea": "soft-attention", "stance": "challenge", "quote": "Recurrence stays the core."},
+        {"member": "ruiz", "idea": "soft-attention", "stance": "support", "quote": "Interesting enough to try"},
+        {"member": "amir", "idea": "soft-attention", "stance": "question", "quote": "does that fit in GPU memory on our cards?"}
+      ],
+      "items": [
+        {"kind": "decision", "member": "daniel", "idea": "lstm", "quote": "LSTM with forget bias is our standard cell from now on."},
+        {"kind": "question", "member": "amir", "idea": "soft-attention", "quote": "does that fit in GPU memory on our cards?"},
+        {"kind": "action", "member": "sora", "idea": "soft-attention", "quote": "Sora: prototype soft attention on the translation side project"},
+        {"kind": "action", "member": "amir", "idea": "soft-attention", "quote": "Amir: measure attention memory use"}
+      ]
+    },
+    {
+      "source": "2014-11-12-group-meeting",
+      "ops": [
+        {"op": "branch", "idea": "gru", "parents": ["lstm"], "owner": "daniel", "title": "GRU", "summary": "Two gates instead of three and no separate cell state; similar memory behaviour and about 20% faster per epoch than LSTM.", "quote": "switch the encoder to the GRU from Cho et al. 2014"}
+      ],
+      "mentions": [
+        {"member": "daniel", "idea": "gru", "stance": "propose", "quote": "switch the encoder to the GRU from Cho et al. 2014"},
+        {"member": "amir", "idea": "gru", "stance": "inform", "quote": "GRU ~20% faster per epoch"},
+        {"member": "ruiz", "idea": "gru", "stance": "support", "quote": "Supportive of switching."},
+        {"member": "sora", "idea": "gru", "stance": "support", "quote": "fine with GRU for the encoder"},
+        {"member": "sora", "idea": "gru", "stance": "challenge", "quote": "both are still sequential"},
+        {"member": "sora", "idea": "soft-attention", "stance": "inform", "quote": "attention prototype on translation: works"},
+        {"member": "daniel", "idea": "soft-attention", "stance": "support", "quote": "GRU encoder + attention decoder is the natural combination"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "gated units are clearly better than the vanilla RNN on every distance bucket"},
+        {"kind": "action", "member": "amir", "idea": "gru", "quote": "A: GRU as the default encoder in the QA code"},
+        {"kind": "action", "member": "sora", "idea": "soft-attention", "quote": "S: attention prototype on QA"}
+      ]
+    },
+    {
+      "source": "2015-03-11-group-meeting",
+      "ops": [
+        {"op": "merge", "idea": "gru-attention", "parents": ["gru", "soft-attention"], "owner": "daniel", "title": "GRU encoder + soft attention", "summary": "Main system: a GRU encoder with soft attention over all encoder states. Daniel leads it; Sora owns the attention module.", "quote": "our main system is now a GRU encoder with soft attention"},
+        {"op": "park", "idea": "lstm", "quote": "LSTM is parked; we keep the code but stop running it."}
+      ],
+      "mentions": [
+        {"member": "sora", "idea": "soft-attention", "stance": "inform", "quote": "accuracy on 200+ token questions went from 38% to 57%"},
+        {"member": "daniel", "idea": "soft-attention", "stance": "support", "quote": "Everyone agreed attention is a real gain on long-range questions, me included."},
+        {"member": "ruiz", "idea": "gru-attention", "stance": "propose", "quote": "our main system is now a GRU encoder with soft attention"},
+        {"member": "sora", "idea": "gru-attention", "stance": "challenge", "quote": "the 19-point gain comes from attention, not from the encoder"},
+        {"member": "amir", "idea": "gru-attention", "stance": "support", "quote": "Amir backed my plan to stabilize the GRU+attention system first"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "Everyone agreed attention is a real gain on long-range questions"},
+        {"kind": "decision", "member": "ruiz", "idea": "gru-attention", "quote": "Prof. Ruiz decided that our main system is now a GRU encoder with soft attention"},
+        {"kind": "decision", "member": "ruiz", "quote": "the leadership question stays open if attention keeps carrying the results"},
+        {"kind": "action", "member": "amir", "idea": "gru-attention", "quote": "Amir — ablation grid"},
+        {"kind": "action", "member": "daniel", "idea": "gru-attention", "quote": "Me — training recipe for the joint system."},
+        {"kind": "action", "member": "sora", "idea": "soft-attention", "quote": "Sora — attention visualizations for the paper."}
+      ]
+    },
+    {
+      "source": "2015-10-14-group-meeting",
+      "ops": [
+        {"op": "new", "idea": "conv-encoder", "owner": "sora", "title": "Convolutional encoder", "summary": "Replace the recurrent encoder with (dilated) convolutions so every position is computed in parallel; attention stays on top.", "quote": "Replace the recurrent encoder with a stack of convolutions."},
+        {"op": "update", "idea": "gru-attention", "summary": "Speed up the GRU pipeline first: bigger batches, fused GPU kernels, bucketing by length.", "quote": "I'd rather speed up the GRU first"}
+      ],
+      "mentions": [
+        {"member": "amir", "idea": "gru-attention", "stance": "inform", "quote": "GRU+attention is best on every bucket."},
+        {"member": "ruiz", "idea": "gru-attention", "stance": "challenge", "quote": "That is the real bottleneck now."},
+        {"member": "sora", "idea": "conv-encoder", "stance": "propose", "quote": "Replace the recurrent encoder with a stack of convolutions."},
+        {"member": "daniel", "idea": "conv-encoder", "stance": "challenge", "quote": "Convolutions only see a fixed window."},
+        {"member": "sora", "idea": "conv-encoder", "stance": "refine", "quote": "Dilated convolutions would cover 2,000 tokens with about 10 layers."},
+        {"member": "amir", "idea": "conv-encoder", "stance": "question", "quote": "would we keep attention on top of the conv encoder?"},
+        {"member": "daniel", "idea": "gru-attention", "stance": "refine", "quote": "I'd rather speed up the GRU first"},
+        {"member": "ruiz", "idea": "conv-encoder", "stance": "support", "quote": "Do both, but cheaply"},
+        {"member": "ruiz", "idea": "gru-attention", "stance": "support", "quote": "Do both, but cheaply"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "Everyone agrees we cannot iterate at 9 days per run."},
+        {"kind": "question", "member": "amir", "idea": "conv-encoder", "quote": "would we keep attention on top of the conv encoder?"},
+        {"kind": "decision", "member": "ruiz", "quote": "Do both, but cheaply"},
+        {"kind": "action", "member": "daniel", "idea": "gru-attention", "quote": "Daniel: GRU speed optimizations"},
+        {"kind": "action", "member": "sora", "idea": "conv-encoder", "quote": "Sora: dilated conv encoder pilot"}
+      ]
+    },
+    {
+      "source": "2016-06-08-group-meeting",
+      "ops": [
+        {"op": "drop", "idea": "conv-encoder", "quote": "Dropping the conv encoder."},
+        {"op": "branch", "idea": "self-attention-encoder", "parents": ["soft-attention"], "owner": "sora", "title": "Self-attention encoder", "summary": "Every position attends to every other position inside the encoder, plus a position signal so order is not lost.", "quote": "self-attention inside the encoder"}
+      ],
+      "mentions": [
+        {"member": "sora", "idea": "conv-encoder", "stance": "inform", "quote": "2.5x faster than GRU, but 4 points worse on 200+ token questions"},
+        {"member": "sora", "idea": "self-attention-encoder", "stance": "propose", "quote": "self-attention inside the encoder"},
+        {"member": "daniel", "idea": "self-attention-encoder", "stance": "challenge", "quote": "Bolting position signals onto attention feels like a hack."},
+        {"member": "ruiz", "idea": "self-attention-encoder", "stance": "challenge", "quote": "memory grows with the square of the length"},
+        {"member": "amir", "idea": "self-attention-encoder", "stance": "inform", "quote": "trains 3x faster than GRU+attention, accuracy 2 points lower"},
+        {"member": "daniel", "idea": "gru-attention", "stance": "inform", "quote": "one full run is now 3.5 days instead of 9"},
+        {"member": "ruiz", "idea": "gru-attention", "stance": "support", "quote": "keep GRU+attention as the main system"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "agree the sequential bottleneck is now the main limit"},
+        {"kind": "decision", "member": "ruiz", "idea": "gru-attention", "quote": "keep GRU+attention as the main system; S may continue self-attention as a side project."},
+        {"kind": "action", "member": "amir", "idea": "self-attention-encoder", "quote": "A: self-attention prototype on 1,000-token documents"},
+        {"kind": "action", "member": "sora", "idea": "self-attention-encoder", "quote": "S: chunked attention to cut memory"}
+      ]
+    },
+    {
+      "source": "2017-06-21-group-meeting",
+      "ops": [
+        {"op": "branch", "idea": "transformer", "parents": ["self-attention-encoder"], "owner": "sora", "title": "Attention-only Transformer", "summary": "Encoder-decoder built only from self-attention and feed-forward layers, with positional encodings and multi-head attention; no recurrence.", "quote": "make an attention-only Transformer our main system"},
+        {"op": "branch", "idea": "recurrent-memory", "parents": ["gru-attention"], "owner": "daniel", "title": "Recurrent memory + segment attention", "summary": "A recurrent memory carries a compressed state across segments and attention works within each segment, so unbounded length costs constant memory.", "quote": "keep a recurrent memory that carries a compressed state across segments"}
+      ],
+      "mentions": [
+        {"member": "sora", "idea": "transformer", "stance": "propose", "quote": "make an attention-only Transformer our main system"},
+        {"member": "amir", "idea": "transformer", "stance": "inform", "quote": "It trains 3x faster than GRU+attention and is 3 points better"},
+        {"member": "amir", "idea": "transformer", "stance": "support", "quote": "Amir now thinks the attention-only model is the way forward"},
+        {"member": "daniel", "idea": "transformer", "stance": "challenge", "quote": "Self-attention is quadratic in length"},
+        {"member": "daniel", "idea": "recurrent-memory", "stance": "propose", "quote": "keep a recurrent memory that carries a compressed state across segments"},
+        {"member": "ruiz", "idea": "transformer", "stance": "support", "quote": "Prof. Ruiz agrees the replication is strong evidence"},
+        {"member": "ruiz", "idea": "transformer", "stance": "challenge", "quote": "shares my memory concern for long documents"}
+      ],
+      "items": [
+        {"kind": "action", "member": "amir", "idea": "transformer", "quote": "Amir — Transformer on 1k / 2k / 4k token documents with memory profiling."},
+        {"kind": "action", "member": "daniel", "idea": "recurrent-memory", "quote": "Me — recurrent-memory prototype."},
+        {"kind": "action", "member": "sora", "idea": "transformer", "quote": "Sora — draft the case for the lab's next two-year agenda."}
+      ]
+    },
+    {
+      "source": "2017-07-12-agenda-meeting",
+      "ops": [],
+      "mentions": [
+        {"member": "amir", "idea": "transformer", "stance": "inform", "quote": "Transformer up to 2,000 tokens: best accuracy of anything we have."},
+        {"member": "amir", "idea": "transformer", "stance": "inform", "quote": "At 4,000 tokens it runs out of memory"},
+        {"member": "daniel", "idea": "recurrent-memory", "stance": "inform", "quote": "Recurrent-memory prototype handles 4,000 tokens"},
+        {"member": "sora", "idea": "transformer", "stance": "propose", "quote": "The field is moving to attention-only models."},
+        {"member": "daniel", "idea": "transformer", "stance": "challenge", "quote": "Memory cost is not a detail."},
+        {"member": "daniel", "idea": "recurrent-memory", "stance": "propose", "quote": "Our documents are getting longer, not shorter, and streaming input never ends."},
+        {"member": "amir", "idea": "transformer", "stance": "support", "quote": "I side with Sora"}
+      ],
+      "items": [
+        {"kind": "question", "member": "ruiz", "quote": "is there a version where attention handles accuracy and something recurrent handles length"},
+        {"kind": "consensus", "quote": "whatever we choose must be evaluated on 4,000+ token documents"},
+        {"kind": "decision", "quote": "Lab agenda and who leads it to be decided at the next meeting"},
+        {"kind": "action", "member": "sora", "idea": "transformer", "quote": "Sora: one-page case for an attention-only agenda"},
+        {"kind": "action", "member": "daniel", "idea": "recurrent-memory", "quote": "Daniel: one-page case for a recurrent-memory agenda"},
+        {"kind": "action", "member": "amir", "quote": "Amir: shared benchmark of 4,000+ token documents"}
+      ]
+    }
+  ]
+}

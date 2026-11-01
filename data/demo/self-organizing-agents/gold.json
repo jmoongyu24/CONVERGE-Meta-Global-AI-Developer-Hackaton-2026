@@ -1,0 +1,233 @@
+{
+  "workspace": "self-organizing-agents",
+  "analyses": [
+    {
+      "source": "2026-08-26-kickoff",
+      "ops": [
+        {"op": "new", "idea": "learned-topology", "owner": "mina", "title": "Learned communication topology", "summary": "A small policy, trained with RL on task success, decides who talks to whom at each round.", "quote": "Proposal: learn the communication topology."},
+        {"op": "new", "idea": "role-negotiation", "owner": "leo", "title": "In-context role negotiation", "summary": "Agents negotiate their roles in-context before solving; no training.", "quote": "Proposal: skip training entirely."}
+      ],
+      "mentions": [
+        {"member": "mina", "idea": "learned-topology", "stance": "propose", "quote": "A small policy decides who talks to whom at each round"},
+        {"member": "leo", "idea": "role-negotiation", "stance": "propose", "quote": "Agents negotiate their roles in-context before solving"},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "I'm not sure it adapts to anything beyond the first round"},
+        {"member": "leo", "idea": "learned-topology", "stance": "challenge", "quote": "Learning a policy per task sounds expensive"},
+        {"member": "han", "idea": "learned-topology", "stance": "support", "quote": "Both directions are interesting"},
+        {"member": "han", "idea": "role-negotiation", "stance": "support", "quote": "Both directions are interesting"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "Hand-designed topologies are brittle"},
+        {"kind": "question", "member": "jae", "quote": "how do we even measure that self-organization helped?"},
+        {"kind": "decision", "quote": "Umbrella topic: self-organizing LLM agent teams, aiming for ICML 2027."},
+        {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: one-page proposal for learned topology"},
+        {"kind": "action", "member": "leo", "idea": "role-negotiation", "quote": "Leo: one-page proposal for role negotiation"},
+        {"kind": "action", "member": "jae", "quote": "Jae: set up a fixed-role baseline harness on 3 tasks"}
+      ]
+    },
+    {
+      "source": "2026-09-02-weekly-02",
+      "ops": [
+        {"op": "update", "idea": "learned-topology", "summary": "The policy picks among 6 edge templates per round instead of arbitrary edges; reward is task success minus a per-message penalty.", "quote": "the policy picks among 6 edge templates per round"}
+      ],
+      "mentions": [
+        {"member": "mina", "idea": "learned-topology", "stance": "propose", "quote": "walked through the RL plan"},
+        {"member": "han", "idea": "learned-topology", "stance": "challenge", "quote": "8×A100 for two weeks is not realistic this semester"},
+        {"member": "leo", "idea": "learned-topology", "stance": "challenge", "quote": "I expect training to be unstable"},
+        {"member": "jae", "idea": "learned-topology", "stance": "question", "quote": "asked how many episodes the policy needs before it beats a fixed graph"},
+        {"member": "mina", "idea": "learned-topology", "stance": "refine", "quote": "Will shrink the action space"}
+      ],
+      "items": [
+        {"kind": "question", "member": "jae", "idea": "learned-topology", "quote": "asked how many episodes the policy needs before it beats a fixed graph"},
+        {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: cost estimate with the 6-template action space"},
+        {"kind": "action", "member": "jae", "quote": "Jae: finish the research-QA task in the harness"}
+      ]
+    },
+    {
+      "source": "2026-09-09-weekly-03",
+      "ops": [
+        {"op": "update", "idea": "role-negotiation", "summary": "Two rounds of role bidding (each agent states the sub-task it wants and why), then a short vote assigns roles; no training, any base model.", "quote": "each agent states which sub-task it wants and why, then a short vote assigns roles"}
+      ],
+      "mentions": [
+        {"member": "leo", "idea": "role-negotiation", "stance": "propose", "quote": "Leo presented the role-negotiation proposal first"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "inform", "quote": "the negotiated team beat the fixed-role baseline on both"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "support", "quote": "Jae thinks this is promising enough to extend to all five tasks"},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "prompted negotiation looks a lot like the role-play frameworks from 2023"},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "I also doubt it scales"},
+        {"member": "han", "idea": "role-negotiation", "stance": "question", "quote": "what exactly is the contribution beyond prompting?"},
+        {"member": "mina", "idea": "learned-topology", "stance": "propose", "quote": "cuts the estimate to about 4 GPU-days per task family"},
+        {"member": "leo", "idea": "learned-topology", "stance": "challenge", "quote": "Leo still thinks the reward signal will be too noisy"},
+        {"member": "han", "idea": "learned-topology", "stance": "support", "quote": "the reduced cost makes it worth a small pilot"}
+      ],
+      "items": [
+        {"kind": "question", "member": "han", "idea": "role-negotiation", "quote": "what exactly is the contribution beyond prompting?"},
+        {"kind": "action", "member": "leo", "idea": "role-negotiation", "quote": "Leo: related-work table"},
+        {"kind": "action", "member": "jae", "idea": "role-negotiation", "quote": "Jae: extend the negotiation pilot to all 5 tasks"},
+        {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: RL pilot on one task family"}
+      ]
+    },
+    {
+      "source": "2026-09-16-weekly-04",
+      "ops": [
+        {"op": "update", "idea": "role-negotiation", "summary": "Re-negotiates roles whenever progress stalls, unlike prior work that negotiates once at the start.", "quote": "ours re-negotiates when progress stalls"},
+        {"op": "branch", "idea": "per-role-finetune", "parents": ["role-negotiation"], "owner": "leo", "title": "Per-role fine-tuned specialists", "summary": "Once roles are negotiated, swap in small fine-tuned specialist models per role.", "quote": "swap in small fine-tuned specialist models per role"}
+      ],
+      "mentions": [
+        {"member": "jae", "idea": "role-negotiation", "stance": "inform", "quote": "still ahead of fixed roles on 3 of them"},
+        {"member": "leo", "idea": "role-negotiation", "stance": "propose", "quote": "ours re-negotiates when progress stalls"},
+        {"member": "leo", "idea": "per-role-finetune", "stance": "propose", "quote": "swap in small fine-tuned specialist models per role"},
+        {"member": "han", "idea": "per-role-finetune", "stance": "challenge", "quote": "Fine-tuning a model per role multiplies our compute problem"},
+        {"member": "mina", "idea": "per-role-finetune", "stance": "challenge", "quote": "That is training too"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "support", "quote": "I like the base negotiation results"},
+        {"member": "jae", "idea": "per-role-finetune", "stance": "question", "quote": "I'm unsure the specialists would be worth the cost"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "Everyone agreed: shared suite first, then method comparisons."},
+        {"kind": "decision", "quote": "Shared evaluation suite: 5 tasks"},
+        {"kind": "question", "member": "jae", "idea": "per-role-finetune", "quote": "Do we have data for that?"},
+        {"kind": "action", "member": "jae", "quote": "Jae: build evaluation suite v0"},
+        {"kind": "action", "member": "leo", "idea": "per-role-finetune", "quote": "Leo: rough cost estimate for per-role fine-tuning"}
+      ]
+    },
+    {
+      "source": "2026-09-23-weekly-05",
+      "ops": [
+        {"op": "park", "idea": "per-role-finetune", "quote": "parking the idea for now"}
+      ],
+      "mentions": [
+        {"member": "mina", "idea": "learned-topology", "stance": "inform", "quote": "3 of 5 seeds collapsed to a fully-connected graph"},
+        {"member": "han", "idea": "learned-topology", "stance": "challenge", "quote": "We need a cheaper search."},
+        {"member": "leo", "idea": "learned-topology", "stance": "challenge", "quote": "The RL route is eating the whole lab budget."},
+        {"member": "mina", "idea": "learned-topology", "stance": "question", "quote": "if I replace RL with a cheaper search, does it still count as learned?"},
+        {"member": "leo", "idea": "per-role-finetune", "stance": "inform", "quote": "~2 GPU-days per role"}
+      ],
+      "items": [
+        {"kind": "question", "member": "mina", "idea": "learned-topology", "quote": "if I replace RL with a cheaper search, does it still count as learned?"},
+        {"kind": "decision", "member": "han", "quote": "Report token counts from day one."},
+        {"kind": "action", "member": "mina", "idea": "learned-topology", "quote": "Mina: try a non-RL search over topologies"},
+        {"kind": "action", "member": "jae", "quote": "Jae: add math + negotiation game to the suite"}
+      ]
+    },
+    {
+      "source": "2026-09-30-weekly-06",
+      "ops": [
+        {"op": "branch", "idea": "bandit-topology", "parents": ["learned-topology"], "owner": "mina", "title": "Bandit topology selection", "summary": "A contextual bandit picks one topology from a six-graph library per task type; reward is success minus token cost; about 40 episodes per task type.", "quote": "a contextual bandit picks one topology from a small library"},
+        {"op": "park", "idea": "learned-topology", "quote": "The RL version is parked"}
+      ],
+      "mentions": [
+        {"member": "mina", "idea": "bandit-topology", "stance": "propose", "quote": "a contextual bandit picks one topology from a small library"},
+        {"member": "han", "idea": "bandit-topology", "stance": "support", "quote": "Prof. Han supported the pivot"},
+        {"member": "leo", "idea": "bandit-topology", "stance": "challenge", "quote": "a bandit over six fixed graphs is model selection, not self-organization"},
+        {"member": "mina", "idea": "bandit-topology", "stance": "propose", "quote": "the team's structure adapts to the task from experience"},
+        {"member": "leo", "idea": "role-negotiation", "stance": "propose", "quote": "letting agents organize in-context without any training"},
+        {"member": "jae", "idea": "bandit-topology", "stance": "question", "quote": "Jae asked whether the bandit's choices transfer across task types"},
+        {"member": "jae", "idea": "bandit-topology", "stance": "inform", "quote": "Jae saw the bandit settle on star for coding and tree for planning"}
+      ],
+      "items": [
+        {"kind": "question", "member": "jae", "idea": "bandit-topology", "quote": "Jae asked whether the bandit's choices transfer across task types"},
+        {"kind": "action", "member": "mina", "idea": "bandit-topology", "quote": "Mina: bandit on all 5 suite tasks"},
+        {"kind": "action", "member": "leo", "quote": "Leo: write down what self-organization means for our paper"}
+      ]
+    },
+    {
+      "source": "2026-10-07-weekly-07",
+      "ops": [
+        {"op": "new", "idea": "comm-budget", "owner": "han", "title": "Communication budget as a first-class metric", "summary": "Every method reports messages and tokens; the main metric is success under a fixed token budget.", "quote": "treat communication budget as first-class"},
+        {"op": "update", "idea": "role-negotiation", "summary": "Pay the negotiation overhead only when adaptation is needed, and show where it pays off.", "quote": "pay for adaptation only when needed"}
+      ],
+      "mentions": [
+        {"member": "han", "idea": "comm-budget", "stance": "propose", "quote": "treat communication budget as first-class"},
+        {"member": "mina", "idea": "comm-budget", "stance": "support", "quote": "fits the bandit; its reward already subtracts token cost"},
+        {"member": "leo", "idea": "comm-budget", "stance": "challenge", "quote": "A budget-first metric penalizes exactly the overhead that makes adaptation possible"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "inform", "quote": "+4% avg success, +18% tokens vs fixed roles"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "support", "quote": "Worth it on planning + research QA"},
+        {"member": "han", "idea": "role-negotiation", "stance": "refine", "quote": "show where the overhead pays off"},
+        {"member": "leo", "idea": "role-negotiation", "stance": "refine", "quote": "pay for adaptation only when needed"}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "All agreed: cost goes in every table from now on."},
+        {"kind": "action", "member": "jae", "idea": "role-negotiation", "quote": "Jae: per-task success-vs-tokens curves"},
+        {"kind": "action", "idea": "comm-budget", "quote": "Mina + Leo: agree on one budget setting for the comparison"}
+      ]
+    },
+    {
+      "source": "2026-10-14-weekly-08",
+      "ops": [
+        {"op": "drop", "idea": "per-role-finetune", "quote": "Per-role fine-tuning is officially dropped"}
+      ],
+      "mentions": [
+        {"member": "mina", "idea": "bandit-topology", "stance": "propose", "quote": "Bandit is best on 4 of 5 tasks for success under the fixed token budget"},
+        {"member": "leo", "idea": "role-negotiation", "stance": "propose", "quote": "negotiation wins the two hardest tasks"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "inform", "quote": "when the task changes mid-episode, agents re-negotiate roles"},
+        {"member": "jae", "idea": "bandit-topology", "stance": "challenge", "quote": "The bandit cannot react until the episode ends."},
+        {"member": "jae", "idea": "role-negotiation", "stance": "support", "quote": "I think that is the strongest argument for Leo's approach."},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "Mid-episode shifts are rare in practice."}
+      ],
+      "items": [
+        {"kind": "decision", "member": "han", "quote": "The lead author will be whoever's direction carries the main claim"},
+        {"kind": "decision", "quote": "One ICML 2027 paper; lead author and main claim decided on 11/04."},
+        {"kind": "question", "member": "han", "quote": "can we test mid-episode task shifts properly?"},
+        {"kind": "action", "member": "jae", "idea": "role-negotiation", "quote": "Jae: design a mid-episode task-shift benchmark"},
+        {"kind": "action", "quote": "Mina, Leo: one-page main-claim draft each"}
+      ]
+    },
+    {
+      "source": "2026-10-16-1on1-han-mina",
+      "ops": [
+        {"op": "merge", "idea": "hybrid-self-org", "parents": ["role-negotiation", "bandit-topology"], "owner": "han", "title": "Hybrid self-organization", "summary": "Agents negotiate roles in-context, and the bandit picks the communication topology for the negotiated roles.", "quote": "Prof. Han floated a hybrid"}
+      ],
+      "mentions": [
+        {"member": "han", "idea": "hybrid-self-org", "stance": "propose", "quote": "Prof. Han floated a hybrid"},
+        {"member": "mina", "idea": "hybrid-self-org", "stance": "support", "quote": "I like it, as long as topology selection is the core contribution"},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "Leo's negotiation got noisy in Jae's early 6-agent run"},
+        {"member": "han", "idea": "hybrid-self-org", "stance": "refine", "quote": "don't frame it as one part serving the other yet"}
+      ],
+      "items": [
+        {"kind": "action", "member": "mina", "idea": "hybrid-self-org", "quote": "Next: I sketch the hybrid architecture for Wednesday."}
+      ]
+    },
+    {
+      "source": "2026-10-21-weekly-09",
+      "ops": [
+        {"op": "update", "idea": "role-negotiation", "summary": "Agents also negotiate the communication links in the same in-context round, so the topology emerges from negotiation without a bandit.", "quote": "let agents negotiate the communication links too"}
+      ],
+      "mentions": [
+        {"member": "mina", "idea": "hybrid-self-org", "stance": "propose", "quote": "Framed topology selection as the main contribution."},
+        {"member": "leo", "idea": "hybrid-self-org", "stance": "challenge", "quote": "negotiation is just a preprocessing step inside Mina's system"},
+        {"member": "leo", "idea": "role-negotiation", "stance": "propose", "quote": "let agents negotiate the communication links too"},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "that throws away the only learned component"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "support", "quote": "I'd back Leo's version"},
+        {"member": "han", "idea": "hybrid-self-org", "stance": "support", "quote": "Still thinks the hybrid is the most robust option."}
+      ],
+      "items": [
+        {"kind": "consensus", "quote": "the mid-episode task shift is the evaluation that matters most for self-organization"},
+        {"kind": "action", "member": "jae", "quote": "Jae: run mid-episode shift on bandit, negotiation, and hybrid"},
+        {"kind": "action", "member": "leo", "idea": "role-negotiation", "quote": "Leo: spec for negotiating communication links"}
+      ]
+    },
+    {
+      "source": "2026-10-28-weekly-10",
+      "ops": [
+        {"op": "branch", "idea": "hierarchical-negotiation", "parents": ["role-negotiation"], "owner": "jae", "title": "Hierarchical negotiation", "summary": "Sub-teams of at most 4 negotiate internally, then sub-team leads negotiate with each other; fixes instability above 6 agents.", "quote": "Sub-teams of at most 4 negotiate internally"}
+      ],
+      "mentions": [
+        {"member": "jae", "idea": "role-negotiation", "stance": "inform", "quote": "negotiation recovers within 2 rounds"},
+        {"member": "jae", "idea": "bandit-topology", "stance": "inform", "quote": "the bandit needs a new episode to re-select"},
+        {"member": "jae", "idea": "hybrid-self-org", "stance": "inform", "quote": "the hybrid recovers in 3 rounds"},
+        {"member": "jae", "idea": "role-negotiation", "stance": "inform", "quote": "negotiation becomes unstable"},
+        {"member": "jae", "idea": "hierarchical-negotiation", "stance": "propose", "quote": "My proposal to fix the scale issue: hierarchical negotiation."},
+        {"member": "leo", "idea": "hierarchical-negotiation", "stance": "support", "quote": "Fully support that."},
+        {"member": "mina", "idea": "role-negotiation", "stance": "challenge", "quote": "If negotiation breaks at 6 agents, it is not self-organization at scale."},
+        {"member": "mina", "idea": "bandit-topology", "stance": "propose", "quote": "The bandit has no such limit."},
+        {"member": "leo", "idea": "bandit-topology", "stance": "challenge", "quote": "the bandit cannot react mid-episode"},
+        {"member": "han", "idea": "comm-budget", "stance": "propose", "quote": "Through the budget lens"}
+      ],
+      "items": [
+        {"kind": "question", "member": "han", "quote": "what is our single main claim?"},
+        {"kind": "decision", "quote": "Decide the main research question and the lead author at the 11/04 meeting."},
+        {"kind": "action", "member": "mina", "idea": "bandit-topology", "quote": "Mina: one-page argument for bandit topology as the main claim"},
+        {"kind": "action", "member": "leo", "idea": "hierarchical-negotiation", "quote": "Leo: one-page argument for hierarchical negotiation as the main claim"},
+        {"kind": "action", "member": "jae", "quote": "Jae: clean result tables for all three options"}
+      ]
+    }
+  ]
+}

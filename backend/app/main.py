@@ -4,12 +4,12 @@ Serves the REST/SSE API under /api and, once `npm run build` has produced
 frontend/dist, the web UI from the same process (one server to deploy).
 """
 
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+from app import REPO_ROOT
+
+FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 app = FastAPI(title="Converge API", version="0.1.0")
 

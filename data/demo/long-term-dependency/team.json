@@ -1,0 +1,11 @@
+{
+  "id": "long-term-dependency",
+  "name": "Ruiz Lab: Overcoming Long-Term Dependencies",
+  "description": "Group meetings (2014–2017) on modelling long-range dependencies for document QA and translation.",
+  "members": [
+    { "id": "ruiz", "name": "Prof. Ruiz", "role": "PI", "aliases": ["Ruiz", "Prof. Ruiz", "R"] },
+    { "id": "daniel", "name": "Daniel Weber", "role": "PhD student", "aliases": ["Daniel", "D"] },
+    { "id": "sora", "name": "Sora Ito", "role": "PhD student", "aliases": ["Sora", "S"] },
+    { "id": "amir", "name": "Amir Haddad", "role": "MS student", "aliases": ["Amir", "A"] }
+  ]
+}

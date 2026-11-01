@@ -1,0 +1,148 @@
+{
+  "workspace": "sim-to-real",
+  "analyses": [
+    {
+      "source": "2026-03-04-kickoff",
+      "ops": [
+        {"op": "new", "idea": "domain-randomization", "owner": "hana", "title": "Massive domain randomization", "summary": "Randomize friction, mass, damping, peg geometry and camera pose so widely that the real world looks like one more variation.", "quote": "Proposal: massive domain randomization."},
+        {"op": "new", "idea": "system-id", "owner": "marco", "title": "System identification (real-to-sim)", "summary": "Calibrate the simulator's contact parameters from a few real rollouts so the sim matches the robot.", "quote": "Calibrate the simulator's contact parameters from a few real rollouts"},
+        {"op": "new", "idea": "real-world-rl", "owner": "hana", "title": "End-to-end RL on the real robot", "summary": "Skip simulation and run RL directly on the real robot.", "quote": "skip sim entirely and run RL directly on the real robot"}
+      ],
+      "mentions": [
+        {"member": "hana", "idea": "domain-randomization", "stance": "propose", "quote": "Proposal: massive domain randomization."},
+        {"member": "marco", "idea": "system-id", "stance": "propose", "quote": "Calibrate the simulator's contact parameters from a few real rollouts"},
+        {"member": "hana", "idea": "system-id", "stance": "challenge", "quote": "Calibration fits one setup"},
+        {"member": "marco", "idea": "domain-randomization", "stance": "challenge", "quote": "Randomizing everything makes the policy conservative"},
+        {"member": "hana", "idea": "real-world-rl", "stance": "propose", "quote": "skip sim entirely and run RL directly on the real robot"},
+        {"member": "okafor", "idea": "real-world-rl", "stance": "challenge", "quote": "Real-robot RL worries me"}
+      ],
+      "items": [
+        {"kind": "decision", "member": "okafor", "quote": "about 10 hours of robot time per week. Every method must respect that."},
+        {"kind": "question", "member": "yuki", "quote": "what counts as success on hardware?"},
+        {"kind": "consensus", "quote": "simulation metrics alone are not trustworthy"},
+        {"kind": "action", "member": "yuki", "quote": "Yuki: hardware evaluation protocol draft"},
+        {"kind": "action", "member": "hana", "idea": "domain-randomization", "quote": "Hana: DR training setup in Isaac Lab"},
+        {"kind": "action", "member": "marco", "idea": "system-id", "quote": "Marco: list of contact parameters to identify"}
+      ]
+    },
+    {
+      "source": "2026-03-18-weekly-02",
+      "ops": [
+        {"op": "drop", "idea": "real-world-rl", "quote": "ruling out real-robot RL for this project"},
+        {"op": "update", "idea": "domain-randomization", "summary": "Wider friction range plus randomized chamfer geometry to cover square pegs.", "quote": "widening it plus randomizing the chamfer geometry"}
+      ],
+      "mentions": [
+        {"member": "okafor", "idea": "real-world-rl", "stance": "challenge", "quote": "ruling out real-robot RL for this project"},
+        {"member": "yuki", "idea": "domain-randomization", "stance": "inform", "quote": "Round pegs: 62% success. Square pegs: 18%."},
+        {"member": "yuki", "idea": "system-id", "stance": "support", "quote": "thinks calibrating the contact model is the more promising fix"},
+        {"member": "marco", "idea": "domain-randomization", "stance": "challenge", "quote": "randomizing around a wrong model just spreads the error"},
+        {"member": "hana", "idea": "domain-randomization", "stance": "propose", "quote": "the friction range was too narrow"}
+      ],
+      "items": [
+        {"kind": "decision", "member": "okafor", "idea": "real-world-rl", "quote": "ruling out real-robot RL for this project"},
+        {"kind": "decision", "member": "okafor", "quote": "one experiment each that could prove the other wrong within two weeks"},
+        {"kind": "action", "member": "hana", "idea": "domain-randomization", "quote": "Hana widens friction and chamfer randomization."},
+        {"kind": "action", "member": "marco", "idea": "system-id", "quote": "I calibrate friction and contact stiffness from 20 real insertions."},
+        {"kind": "action", "member": "yuki", "quote": "Yuki adds force traces to every hardware trial."}
+      ]
+    },
+    {
+      "source": "2026-04-01-weekly-03",
+      "ops": [
+        {"op": "update", "idea": "system-id", "summary": "Friction and contact stiffness calibrated from 20 real insertions (force traces within 8%); re-identify per material at about 15 minutes of robot time.", "quote": "Then we re-identify per material"}
+      ],
+      "mentions": [
+        {"member": "marco", "idea": "system-id", "stance": "propose", "quote": "square pegs 49% on hardware (was 18%)"},
+        {"member": "hana", "idea": "domain-randomization", "stance": "inform", "quote": "Wider randomization: square pegs 31%"},
+        {"member": "yuki", "idea": "system-id", "stance": "inform", "quote": "Marco's calibrated policy is the first one that inserts square pegs without jamming."},
+        {"member": "yuki", "idea": "system-id", "stance": "support", "quote": "I'd like to put my hardware time behind the calibration line."},
+        {"member": "hana", "idea": "system-id", "stance": "challenge", "quote": "The calibration is fitted on one object set."},
+        {"member": "marco", "idea": "system-id", "stance": "refine", "quote": "Then we re-identify per material"},
+        {"member": "okafor", "idea": "system-id", "stance": "question", "quote": "does it still hold if the gripper pads wear down over a month?"},
+        {"member": "hana", "idea": "domain-randomization", "stance": "propose", "quote": "My bet is that DR generalizes and calibration does not"}
+      ],
+      "items": [
+        {"kind": "question", "member": "okafor", "idea": "system-id", "quote": "does it still hold if the gripper pads wear down over a month?"},
+        {"kind": "action", "member": "yuki", "quote": "Yuki: build a held-out object set"},
+        {"kind": "action", "member": "marco", "idea": "system-id", "quote": "Marco: test calibration drift over two weeks"}
+      ]
+    },
+    {
+      "source": "2026-04-15-weekly-04",
+      "ops": [
+        {"op": "branch", "idea": "adaptive-dr", "parents": ["domain-randomization"], "owner": "hana", "title": "Curriculum domain randomization", "summary": "Start with narrow ranges and widen each parameter only once the policy succeeds at the current range.", "quote": "automatic curriculum for randomization"},
+        {"op": "branch", "idea": "residual-dynamics", "parents": ["system-id"], "owner": "marco", "title": "Learned residual dynamics", "summary": "A residual dynamics model learned from real force traces, added on top of the calibrated sim.", "quote": "learn a residual dynamics model from real force traces"}
+      ],
+      "mentions": [
+        {"member": "hana", "idea": "adaptive-dr", "stance": "propose", "quote": "automatic curriculum for randomization"},
+        {"member": "marco", "idea": "residual-dynamics", "stance": "propose", "quote": "learn a residual dynamics model from real force traces"},
+        {"member": "yuki", "idea": "residual-dynamics", "stance": "support", "quote": "supports the residual model"},
+        {"member": "marco", "idea": "residual-dynamics", "stance": "inform", "quote": "about 40 minutes of robot data for training"},
+        {"member": "hana", "idea": "adaptive-dr", "stance": "propose", "quote": "zero real data for training, only for evaluation"},
+        {"member": "okafor", "idea": "system-id", "stance": "inform", "quote": "friction shifted 5% over two weeks"}
+      ],
+      "items": [
+        {"kind": "question", "member": "okafor", "quote": "how many minutes of real robot data does each approach consume?"},
+        {"kind": "decision", "member": "okafor", "idea": "system-id", "quote": "re-identification once a week is enough"},
+        {"kind": "action", "member": "yuki", "quote": "Yuki: hardware runs for both extensions on the held-out object set"},
+        {"kind": "action", "quote": "Hana + Marco: agree on how to count real-data minutes in the comparison"}
+      ]
+    },
+    {
+      "source": "2026-04-29-weekly-05",
+      "ops": [],
+      "mentions": [
+        {"member": "yuki", "idea": "residual-dynamics", "stance": "inform", "quote": "Residual model is clearly best on the object it was trained for"},
+        {"member": "yuki", "idea": "adaptive-dr", "stance": "inform", "quote": "curriculum DR barely drops on new objects"},
+        {"member": "hana", "idea": "adaptive-dr", "stance": "propose", "quote": "DR generalizes, calibration overfits"},
+        {"member": "marco", "idea": "adaptive-dr", "stance": "challenge", "quote": "The comparison is unfair"},
+        {"member": "marco", "idea": "residual-dynamics", "stance": "propose", "quote": "with re-identification per material it would reach 65%+ on brass"},
+        {"member": "hana", "idea": "residual-dynamics", "stance": "challenge", "quote": "count the re-identification time as a cost"},
+        {"member": "yuki", "idea": "residual-dynamics", "stance": "support", "quote": "I still think the residual model is the stronger contribution for tight tolerances"}
+      ],
+      "items": [
+        {"kind": "decision", "member": "okafor", "quote": "real-data minutes become a reported cost"},
+        {"kind": "consensus", "quote": "every table reports real-robot data minutes alongside success"},
+        {"kind": "action", "member": "yuki", "idea": "residual-dynamics", "quote": "Yuki: re-identification per material for the residual model"},
+        {"kind": "action", "member": "hana", "idea": "adaptive-dr", "quote": "Hana: curriculum DR with 5 more object geometries"}
+      ]
+    },
+    {
+      "source": "2026-05-13-weekly-06",
+      "ops": [
+        {"op": "merge", "idea": "calibrated-dr", "parents": ["system-id", "domain-randomization"], "owner": "okafor", "title": "Calibrated randomization", "summary": "Identify parameters per material, then randomize in a narrow band around the identified values: precision from calibration, robustness from randomization.", "quote": "identify parameters per material, then randomize in a narrow band around the identified values"}
+      ],
+      "mentions": [
+        {"member": "okafor", "idea": "calibrated-dr", "stance": "propose", "quote": "combine the two lines"},
+        {"member": "hana", "idea": "calibrated-dr", "stance": "support", "quote": "partly on board"},
+        {"member": "hana", "idea": "calibrated-dr", "stance": "refine", "quote": "Wants the band width learned, not fixed."},
+        {"member": "marco", "idea": "calibrated-dr", "stance": "challenge", "quote": "randomizing around a good estimate throws away precision"},
+        {"member": "yuki", "idea": "residual-dynamics", "stance": "inform", "quote": "residual model on brass 66% (was 52%)"},
+        {"member": "yuki", "idea": "residual-dynamics", "stance": "support", "quote": "Supports Marco's numbers."}
+      ],
+      "items": [
+        {"kind": "decision", "member": "okafor", "quote": "CoRL deadline in 5 weeks. One paper. The lead decides the main claim."},
+        {"kind": "action", "member": "yuki", "idea": "calibrated-dr", "quote": "Yuki: hardware runs of the combined method"},
+        {"kind": "action", "quote": "Hana, Marco: one-page main-claim drafts by 05/27"}
+      ]
+    },
+    {
+      "source": "2026-05-27-weekly-07",
+      "ops": [],
+      "mentions": [
+        {"member": "yuki", "idea": "calibrated-dr", "stance": "inform", "quote": "It is never the best on a single object but never bad either."},
+        {"member": "yuki", "idea": "residual-dynamics", "stance": "support", "quote": "Yuki thinks the residual model is still the cleaner story"},
+        {"member": "hana", "idea": "adaptive-dr", "stance": "propose", "quote": "curriculum randomization reaches tight-tolerance insertion on unseen objects"},
+        {"member": "marco", "idea": "residual-dynamics", "stance": "propose", "quote": "a learned residual on a calibrated simulator closes the contact gap"},
+        {"member": "marco", "idea": "adaptive-dr", "stance": "challenge", "quote": "generalization can come from re-identification"},
+        {"member": "okafor", "idea": "calibrated-dr", "stance": "propose", "quote": "the combined method as a middle ground"}
+      ],
+      "items": [
+        {"kind": "question", "member": "okafor", "quote": "which single result would make a CoRL reviewer care most"},
+        {"kind": "consensus", "quote": "the paper must include the held-out object results"},
+        {"kind": "decision", "quote": "main claim and lead author to be decided on June 3"},
+        {"kind": "action", "quote": "everyone sends a ranked list of the three options"}
+      ]
+    }
+  ]
+}

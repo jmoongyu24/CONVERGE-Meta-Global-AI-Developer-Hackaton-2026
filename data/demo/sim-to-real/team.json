@@ -1,0 +1,11 @@
+{
+  "id": "sim-to-real",
+  "name": "Okafor Lab: Sim-to-Real Insertion",
+  "description": "Weekly meetings on transferring simulation-trained policies to a real robot arm for tight-tolerance peg insertion. Target venue: CoRL 2026.",
+  "members": [
+    { "id": "okafor", "name": "Prof. Okafor", "role": "PI", "aliases": ["Okafor", "Prof. Okafor"] },
+    { "id": "hana", "name": "Hana Lee", "role": "PhD student", "aliases": ["Hana"] },
+    { "id": "marco", "name": "Marco Rossi", "role": "PhD student", "aliases": ["Marco"] },
+    { "id": "yuki", "name": "Yuki Tanaka", "role": "MS student", "aliases": ["Yuki"] }
+  ]
+}

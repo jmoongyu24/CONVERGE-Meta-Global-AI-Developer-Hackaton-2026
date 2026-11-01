@@ -1,0 +1,11 @@
+{
+  "id": "self-organizing-agents",
+  "name": "Han Lab: Self-Organizing Agent Teams",
+  "description": "Weekly meetings on LLM agent teams that organize their own roles and communication. Target venue: ICML 2027.",
+  "members": [
+    { "id": "han", "name": "Prof. Han", "role": "PI", "aliases": ["Han", "Prof. Han", "Prof"] },
+    { "id": "mina", "name": "Mina Cho", "role": "PhD student (4th year)", "aliases": ["Mina"] },
+    { "id": "leo", "name": "Leo Novak", "role": "PhD student (3rd year)", "aliases": ["Leo"] },
+    { "id": "jae", "name": "Jae Kim", "role": "MS student", "aliases": ["Jae"] }
+  ]
+}
