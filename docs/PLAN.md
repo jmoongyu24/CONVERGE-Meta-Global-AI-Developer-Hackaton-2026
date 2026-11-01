@@ -145,9 +145,10 @@ flowchart LR
 
 1. **Normalize**: 회의록을 줄 번호가 붙은 markdown으로 변환. member 명단(별칭 포함, 예: "교수님", "Prof. Han")과 Notion block 작성자 정보를 hint로 붙인다.
 2. **Extract & Link** (muse-spark-1.3, structured output): 입력은 이번 회의록 + **지금까지의 idea registry**(id·제목·요약·상태). 출력은 아래 세 가지.
-   - `mentions`: 어떤 아이디어를 / 누가 / 어떤 stance(propose·support·refine·concern·question)로 / 원문 quote + 줄 번호
-   - `idea_ops`: new · update · branch(from) · merge(from 여러 개) · park · drop + 근거
-   - `items`: open question · decision · action item (담당자, 관련 아이디어)
+   - `mentions`: 어떤 아이디어를 / 누가 / 어떤 stance(propose·support·refine·question·challenge·inform)로 / 원문 quote
+   - `ops`: new · update · branch(parent 1개) · merge(parent 2개 이상) · park · drop + 근거 quote
+   - `items`: question · decision · action · consensus(팀 전체가 동의한 점) + 담당자, 관련 아이디어
+   - 이 출력 schema가 `models.py`의 `SourceAnalysis`이고, gold label도 같은 schema다. 줄 번호는 LLM이 아니라 Verify 단계에서 계산한다.
 3. **Verify**: quote가 해당 줄에 실제로 있는지 검사. 정확히 일치하지 않으면 rapidfuzz 유사도 ≥ 90일 때 원문 구간으로 보정하고, 그래도 실패하면 버리고 로그를 남긴다.
 4. **Apply**: LLM이 아니라 코드가 ops를 적용해서 ideas · idea_versions · edges · items를 갱신한다. 모든 행에 source_id가 붙어 있어서 "그 시점의 상태"를 언제든 재구성할 수 있다 → time slider.
 5. **Insights**: 최근 K회 언급이 없는 아이디어 → dormant, member별 profile, stance matrix, 미해결 질문 추적.
@@ -178,8 +179,9 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 
 | Table | 주요 column | 설명 |
 |---|---|---|
-| members | id, name, aliases, role, color | 교수·학생 |
-| sources | id, kind(meeting·personal_note), date, title, author_id, url, text | 회의록·개인 아이디어 노트 |
+| workspaces | id, name, description | 팀(연구실) 단위. 아래 모든 table이 workspace_id를 가진다 |
+| members | id, name, role, aliases | 교수·학생. aliases는 회의록에서 부르는 이름 ("Prof", "D") |
+| sources | id, kind(meeting·note), occurred_at, title, text, url | 회의록·개인 아이디어 노트 |
 | ideas | id, title, status, owner_id, canvas(json), born_source_id | 현재 상태의 아이디어 |
 | idea_versions | idea_id, source_id, title, summary | 회의별 아이디어 변화 이력 (changelog) |
 | idea_edges | from_id, to_id, type(branch·merge·related·conflict), source_id, rationale | lineage |
@@ -279,6 +281,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - Notion: 지정한 parent page 아래 child page들 → block을 markdown으로 변환. 날짜는 제목·date property, 없으면 created_time. block 작성자(created_by)는 member 매핑 hint로 사용
 - Markdown import: 파일 업로드 / 붙여넣기 (Notion export, Obsidian, Google Docs export도 수용)
 - Demo dataset (synthetic): 하나의 큰 연구 주제 아래 3~5명이 여러 방향의 아이디어로 경합하는 회의 기록. 기록마다 시점(날짜·시간)과 member별 의견이 담기고, 공통 의견(align)과 대립 의견이 모두 존재한다. branch·merge·park·drop을 의도적으로 심어두고, 마지막 회의는 결론 없이 끝나서 Converge Room이 수렴을 이어받는다
+  - 시나리오 3개 (모두 PhD 2명이 주도권 경합, MS 1명이 한쪽을 지원): self-organizing agents (11회, 2026), long-term dependency RNN → LSTM → GRU → Transformer (10회, 2014~2017), sim-to-real (7회, 2026). 상세는 [data/demo/README.md](../data/demo/README.md)
 - 정답(gold.json)은 F2 출력과 **같은 schema**로 만든다 → key 없이 F3~F5를 개발하고, key가 오면 그대로 F7 eval에 쓴다
 - (선택) demo 회의록을 Notion 테스트 workspace에 올리는 script. 영상의 "Notion 연결" 장면용
 - **DoD**: demo 10회 + 본인 Notion 테스트 페이지 1개 import 성공

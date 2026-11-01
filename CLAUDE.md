@@ -16,6 +16,7 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
    - 예상 GPU memory를 항목별 GB로: weights, gradients, optimizer states, activations, 기타 (CUDA context, buffer 등)
    - 예상 학습 시간 (로컬 GPU: RTX 4070 Ti SUPER 16GB)
 6. commit·push는 사용자가 직접 한다. 작업이 끝나면 추천 commit message(와 branch 이름)를 제시한다.
+7. 사용자의 실제 연구 기록(Notion 등)에는 접근하지 않는다. Notion API는 사용자가 지정한 test page에만 쓰고, `.env`는 열지 않는다.
 
 ## Commands
 
@@ -25,6 +26,8 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 | frontend 실행 (dev) | `cd frontend && npm run dev` → http://localhost:5173 (`/api`는 :8000으로 proxy) |
 | 배포용 build | `cd frontend && npm run build` → FastAPI가 `frontend/dist`를 http://localhost:8000 에서 serve |
 | test | `cd backend && uv run pytest` |
+| demo 데이터 적재 | `cd backend && uv run python -m app.ingest demo` → `data/converge.db` |
+| Notion import | `cd backend && uv run python -m app.ingest notion <page_id> --team <team.json>` |
 | Python lint·format | `cd backend && uv run ruff format . && uv run ruff check --fix .` |
 | TS lint·format | `cd frontend && npm run check` |
 
