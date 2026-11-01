@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app import REPO_ROOT
-from app.models import Member, Source, Workspace
+from app.models import Member, Source, SourceAnalysis, Workspace
 
 DB_PATH = REPO_ROOT / "data" / "converge.db"
 
@@ -36,12 +36,23 @@ CREATE TABLE IF NOT EXISTS sources (
     url          TEXT,
     PRIMARY KEY (workspace_id, id)
 );
+-- One SourceAnalysis (JSON) per source and origin: 'gold' = hand labels, 'llm' = model output.
+-- Ideas, edges and stances are not stored; the pipeline rebuilds them by replaying these.
+CREATE TABLE IF NOT EXISTS analyses (
+    workspace_id TEXT NOT NULL,
+    source_id    TEXT NOT NULL,
+    origin       TEXT NOT NULL,
+    analysis     TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, source_id, origin),
+    FOREIGN KEY (workspace_id, source_id) REFERENCES sources (workspace_id, id) ON DELETE CASCADE
+);
 """
 
 
 @contextmanager
-def connect(path: Path = DB_PATH) -> Iterator[sqlite3.Connection]:
-    """Open the database, creating tables if needed; commit when the block succeeds."""
+def connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
+    """Open the database (DB_PATH by default), creating tables if needed; commit on success."""
+    path = path or DB_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -52,6 +63,9 @@ def connect(path: Path = DB_PATH) -> Iterator[sqlite3.Connection]:
         conn.commit()
     finally:
         conn.close()
+
+
+# --- Workspaces ----------------------------------------------------------------
 
 
 def save_workspace(conn: sqlite3.Connection, workspace: Workspace) -> None:
@@ -71,6 +85,34 @@ def save_workspace(conn: sqlite3.Connection, workspace: Workspace) -> None:
     )
 
 
+def _workspace(conn: sqlite3.Connection, row: sqlite3.Row) -> Workspace:
+    members = conn.execute(
+        "SELECT * FROM members WHERE workspace_id = ? ORDER BY rowid", (row["id"],)
+    ).fetchall()
+    return Workspace(
+        id=row["id"],
+        name=row["name"],
+        description=row["description"],
+        members=[
+            Member(id=m["id"], name=m["name"], role=m["role"], aliases=json.loads(m["aliases"]))
+            for m in members
+        ],
+    )
+
+
+def list_workspaces(conn: sqlite3.Connection) -> list[Workspace]:
+    rows = conn.execute("SELECT * FROM workspaces ORDER BY name").fetchall()
+    return [_workspace(conn, row) for row in rows]
+
+
+def get_workspace(conn: sqlite3.Connection, workspace_id: str) -> Workspace | None:
+    row = conn.execute("SELECT * FROM workspaces WHERE id = ?", (workspace_id,)).fetchone()
+    return _workspace(conn, row) if row else None
+
+
+# --- Sources -------------------------------------------------------------------
+
+
 def save_sources(conn: sqlite3.Connection, workspace_id: str, sources: list[Source]) -> None:
     """Insert new sources; a source imported again (same id) is updated in place."""
     conn.executemany(
@@ -86,41 +128,53 @@ def save_sources(conn: sqlite3.Connection, workspace_id: str, sources: list[Sour
     )
 
 
-def list_workspaces(conn: sqlite3.Connection) -> list[Workspace]:
-    workspaces = []
-    for row in conn.execute("SELECT * FROM workspaces ORDER BY name"):
-        members = conn.execute(
-            "SELECT * FROM members WHERE workspace_id = ? ORDER BY rowid", (row["id"],)
-        )
-        workspaces.append(
-            Workspace(
-                id=row["id"],
-                name=row["name"],
-                description=row["description"],
-                members=[
-                    Member(
-                        id=m["id"], name=m["name"], role=m["role"], aliases=json.loads(m["aliases"])
-                    )
-                    for m in members
-                ],
-            )
-        )
-    return workspaces
+def _source(row: sqlite3.Row) -> Source:
+    return Source(
+        id=row["id"],
+        kind=row["kind"],
+        occurred_at=datetime.fromisoformat(row["occurred_at"]),
+        title=row["title"],
+        text=row["text"],
+        url=row["url"],
+    )
 
 
 def list_sources(conn: sqlite3.Connection, workspace_id: str) -> list[Source]:
     """A workspace's sources in time order."""
     rows = conn.execute(
         "SELECT * FROM sources WHERE workspace_id = ? ORDER BY occurred_at", (workspace_id,)
+    ).fetchall()
+    return [_source(row) for row in rows]
+
+
+def get_source(conn: sqlite3.Connection, workspace_id: str, source_id: str) -> Source | None:
+    row = conn.execute(
+        "SELECT * FROM sources WHERE workspace_id = ? AND id = ?", (workspace_id, source_id)
+    ).fetchone()
+    return _source(row) if row else None
+
+
+# --- Analyses ------------------------------------------------------------------
+
+
+def save_analyses(
+    conn: sqlite3.Connection, workspace_id: str, origin: str, analyses: list[SourceAnalysis]
+) -> None:
+    """Store one analysis per source; analysing a source again replaces it."""
+    conn.executemany(
+        """INSERT INTO analyses (workspace_id, source_id, origin, analysis) VALUES (?, ?, ?, ?)
+           ON CONFLICT (workspace_id, source_id, origin)
+           DO UPDATE SET analysis = excluded.analysis""",
+        [(workspace_id, a.source, origin, a.model_dump_json()) for a in analyses],
     )
-    return [
-        Source(
-            id=r["id"],
-            kind=r["kind"],
-            occurred_at=datetime.fromisoformat(r["occurred_at"]),
-            title=r["title"],
-            text=r["text"],
-            url=r["url"],
-        )
-        for r in rows
-    ]
+
+
+def list_analyses(
+    conn: sqlite3.Connection, workspace_id: str, origin: str
+) -> dict[str, SourceAnalysis]:
+    """Analyses of one origin, keyed by source id."""
+    rows = conn.execute(
+        "SELECT source_id, analysis FROM analyses WHERE workspace_id = ? AND origin = ?",
+        (workspace_id, origin),
+    ).fetchall()
+    return {row["source_id"]: SourceAnalysis.model_validate_json(row["analysis"]) for row in rows}
