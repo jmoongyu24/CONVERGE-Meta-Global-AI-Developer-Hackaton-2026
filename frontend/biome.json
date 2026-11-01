@@ -8,6 +8,9 @@
   "linter": {
     "rules": { "preset": "recommended" }
   },
+  "css": {
+    "parser": { "tailwindDirectives": true }
+  },
   "assist": {
     "actions": { "source": { "organizeImports": "on" } }
   }

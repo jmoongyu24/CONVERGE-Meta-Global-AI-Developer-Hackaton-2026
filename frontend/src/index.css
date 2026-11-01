@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+/* Chart tokens from the validated reference palette (light mode). Members get the
+   categorical slots in fixed order; text always uses the ink tokens, never a series color.
+   `static` emits every variable: the series colors are used from SVG attributes, which
+   Tailwind cannot see, so it would otherwise drop them. */
+@theme static {
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-page: #f9f9f7;
+  --color-surface: #fcfcfb;
+  --color-wash: #f0efec;
+  --color-ink: #0b0b0b;
+  --color-ink-2: #52514e;
+  --color-muted: #898781;
+  --color-hairline: #e1e0d9;
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
+  --color-series-5: #e87ba4;
+}
+
+:root {
+  color-scheme: light;
+  background: var(--color-page);
+  color: var(--color-ink);
+}
+
+/* Marks fade in when they first appear, so stepping the time slider shows ideas being
+   born, branching, and merging. */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+.appear {
+  animation: appear 450ms ease-out;
+  transition: opacity 300ms ease-out;
+}
