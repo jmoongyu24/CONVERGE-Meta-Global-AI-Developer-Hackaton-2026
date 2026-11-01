@@ -1,0 +1,19 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Local data (demo source files under data/demo/ are committed)
+data/*.db
+data/*.db-*
+
+# OS
+.DS_Store
