@@ -103,6 +103,15 @@ export interface LocatedModuleOp {
   line: number;
 }
 
+export interface ModuleContribution {
+  member: string;
+  approach: string;
+  idea: string | null;
+  source: string;
+  line: number;
+  quote: string;
+}
+
 export interface ModuleView {
   id: string;
   title: string;
@@ -115,6 +124,8 @@ export interface ModuleView {
   born: string;
   changed: string;
   history: LocatedModuleOp[];
+  contributions: ModuleContribution[];
+  contested: boolean;
 }
 
 export interface StanceCell {
@@ -154,6 +165,84 @@ export interface LineageState {
   issues: string[];
 }
 
+export interface Evidence {
+  source: string;
+  quote: string;
+}
+
+export interface Claim {
+  text: string;
+  evidence: Evidence[];
+}
+
+export interface PersonFocus {
+  member: string;
+  idea: Claim | null;
+  next: Claim[];
+  modules: string[];
+}
+
+export interface Contest {
+  question: string;
+  module: string | null;
+  sides: { members: string[]; position: string }[];
+  decide_by: string | null;
+  evidence: Evidence[];
+}
+
+export interface Board {
+  workspace: string;
+  origin: string;
+  as_of: string;
+  written_at: string;
+  problem: Claim | null;
+  status: Claim | null;
+  people: PersonFocus[];
+  contests: Contest[];
+  issues: string[];
+}
+
+export interface UpdateStatus {
+  state: "idle" | "running" | "done" | "failed";
+  step: string;
+  done: number;
+  total: number;
+  error: string | null;
+  cost: number;
+}
+
+export interface Turn {
+  member: string;
+  round: number;
+  message: string;
+  evidence: Evidence[];
+  supported: boolean;
+}
+
+export interface Proposal {
+  title: string;
+  decision: string;
+  why: Claim | null;
+  assignments: { member: string; step: string; module: string | null }[];
+  acceptance: { member: string; likely: "yes" | "maybe" | "no"; reason: string }[];
+  risk: string;
+}
+
+export interface ConvergeSession {
+  id: string;
+  workspace: string;
+  question: string;
+  members: string[];
+  module: string | null;
+  state: "running" | "done" | "failed";
+  step: string;
+  turns: Turn[];
+  proposals: Proposal[];
+  adopted: number | null;
+  error: string | null;
+  cost: number;
+}
+
 export interface EditRequest {
   member: string;
   action: "add" | "update" | "remove" | "question" | "action" | "support" | "challenge";
@@ -185,6 +274,44 @@ const workspacePath = (workspaceId: string) => `/api/workspaces/${encodeURICompo
 
 export const fetchWorkspaces = () => get<Workspace[]>("/api/workspaces");
 
+export const fetchState = (workspaceId: string) =>
+  get<LineageState>(`${workspacePath(workspaceId)}/state`);
+
+/** The briefing from the last update, or null before the first one. */
+export async function fetchBoard(workspaceId: string): Promise<Board | null> {
+  const response = await fetch(`${workspacePath(workspaceId)}/board`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return (await response.json()) as Board;
+}
+
+async function send<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof data.detail === "string" ? data.detail : response.statusText);
+  }
+  return data as T;
+}
+
+export const startUpdate = (workspaceId: string) =>
+  send<UpdateStatus>(`${workspacePath(workspaceId)}/update`);
+
+export const fetchUpdate = (workspaceId: string) =>
+  get<UpdateStatus>(`${workspacePath(workspaceId)}/update`);
+
+export const connectNotion = (url: string) => send<Workspace>("/api/workspaces/connect", { url });
+
+/** The workspace a Notion page belongs to, for the browser extension's side panel. */
+export async function findNotionPage(url: string) {
+  const id = /[0-9a-f]{32}/.exec(url.replaceAll("-", ""))?.[0];
+  return id ? (await get<{ workspace: string | null }>(`/api/notion/${id}`)).workspace : null;
+}
+
 export const fetchRevision = async (workspaceId: string) =>
   (await get<{ revision: string }>(`${workspacePath(workspaceId)}/revision`)).revision;
 
@@ -195,17 +322,8 @@ export const assetUrl = (workspaceId: string, target: string) =>
     : target;
 
 /** Record an edit; the server answers 400 with a reason when the edit does not fit. */
-export async function postEdit(workspaceId: string, edit: EditRequest): Promise<EditResult> {
-  const response = await fetch(`${workspacePath(workspaceId)}/edits`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(edit),
-  });
-  const body = await response.json();
-  if (!response.ok)
-    throw new Error(typeof body.detail === "string" ? body.detail : response.statusText);
-  return body as EditResult;
-}
+export const postEdit = (workspaceId: string, edit: EditRequest) =>
+  send<EditResult>(`${workspacePath(workspaceId)}/edits`, edit);
 
 export const fetchSource = (workspaceId: string, sourceId: string) =>
   get<Source>(
@@ -224,3 +342,22 @@ export async function fetchTimeline(workspaceId: string): Promise<LineageState[]
     ),
   );
 }
+
+export const openConverge = (
+  workspaceId: string,
+  request: { question: string; members: string[]; module: string | null },
+) => send<ConvergeSession>(`${workspacePath(workspaceId)}/converge`, request);
+
+export const fetchConverge = (workspaceId: string, sessionId: string) =>
+  get<ConvergeSession>(`${workspacePath(workspaceId)}/converge/${sessionId}`);
+
+export const adoptProposal = (
+  workspaceId: string,
+  sessionId: string,
+  proposal: number,
+  member: string,
+) =>
+  send<EditResult>(`${workspacePath(workspaceId)}/converge/${sessionId}/adopt`, {
+    proposal,
+    member,
+  });

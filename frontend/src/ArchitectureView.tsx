@@ -6,7 +6,7 @@
 
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk.bundled.js";
 import { Plus } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import type { EditRequest, LineageState, ModuleView } from "./api";
 import { Dot, FOR_STANCES, lookup, NEUTRAL, StanceChip, truncate } from "./ui";
 
@@ -111,7 +111,12 @@ const boxWidth = (module: ModuleView, subtitle: string) =>
     Math.min(224, Math.max(116, 24 + Math.max(6.6 * module.title.length, 5.5 * subtitle.length))),
   );
 
-function toElk(modules: ModuleView[], wires: Wire[], subtitle: (m: ModuleView) => string) {
+function toElk(
+  modules: ModuleView[],
+  wires: Wire[],
+  width: (m: ModuleView) => number,
+  direction: "RIGHT" | "DOWN",
+) {
   const ids = new Set(modules.map((m) => m.id));
   const blocks = new Set(modules.flatMap((m) => (m.group && ids.has(m.group) ? [m.group] : [])));
   const nodes = new Map<string, ElkNode>();
@@ -125,13 +130,17 @@ function toElk(modules: ModuleView[], wires: Wire[], subtitle: (m: ModuleView) =
             layoutOptions: {
               "elk.padding": "[top=40,left=12,bottom=12,right=12]",
               "elk.nodeSize.constraints": "MINIMUM_SIZE",
-              "elk.nodeSize.minimum": `(${boxWidth(module, subtitle(module)) + 20}, 80)`,
+              "elk.nodeSize.minimum": `(${width(module) + 20}, 80)`,
             },
           }
-        : { id: module.id, width: boxWidth(module, subtitle(module)), height: BOX_HEIGHT },
+        : { id: module.id, width: width(module), height: BOX_HEIGHT },
     );
   }
-  const root: ElkNode = { id: "root", layoutOptions: LAYOUT_OPTIONS, children: [] };
+  const root: ElkNode = {
+    id: "root",
+    layoutOptions: { ...LAYOUT_OPTIONS, "elk.direction": direction },
+    children: [],
+  };
   for (const module of modules) {
     const node = nodes.get(module.id);
     const parent = (module.group && nodes.get(module.group)) || root;
@@ -191,36 +200,56 @@ function routePath(points: { x: number; y: number }[]) {
   return `${d} L${last.x},${last.y}`;
 }
 
+const badgeWidth = (text: string) => text.length * 6.2 + 12;
+
 const tint = (color: string, percent: number) =>
   `color-mix(in oklab, ${color} ${percent}%, var(--color-surface))`;
 
-interface Props {
+/** The members on a module: its contributors, else its owner. */
+export const peopleOf = (module: ModuleView) =>
+  module.contributions.length
+    ? [...new Set(module.contributions.map((c) => c.member))]
+    : module.owner
+      ? [module.owner]
+      : [];
+
+/** "Sora Ito" -> "Sora"; titles such as "Prof. Ruiz" stay whole. */
+export const shortName = (name: string) =>
+  /^(Prof|Dr)\.?\s/.test(name) ? name : name.split(" ")[0];
+
+interface CanvasProps {
   state: LineageState;
-  previous: LineageState | undefined;
+  previous?: LineageState; // given: badge what changed since that meeting
   colors: Record<string, string>;
   selected: string | null;
-  editable: boolean;
+  focus?: string | null; // a member whose modules stay bright while the rest fade
+  direction?: "RIGHT" | "DOWN"; // DOWN suits a narrow side panel
   onSelect: (moduleId: string) => void;
-  onAdd: () => void;
 }
 
-export function ArchitectureView({
+/** The diagram: one box per module, split into a vertical stripe per member working on it. */
+export function ArchitectureCanvas({
   state,
   previous,
   colors,
   selected,
-  editable,
+  focus = null,
+  direction = "RIGHT",
   onSelect,
-  onAdd,
-}: Props) {
+}: CanvasProps) {
   const { name } = lookup(state);
+  const clip = useId();
   const { modules, changes, wires } = useMemo(() => diagram(state, previous), [state, previous]);
-  const subtitle = (m: ModuleView) =>
-    `${m.owner ? name(m.owner) : "Unassigned"} · ${m.status === "removed" ? "removed" : m.status}`;
-  const colorOf = (m: ModuleView) => (m.owner ? colors[m.owner] : undefined) ?? MUTED;
+  const subtitle = (m: ModuleView) => {
+    if (m.status === "removed") return "removed";
+    const people = peopleOf(m).map((member) => shortName(name(member)));
+    return people.length ? people.join(" · ") : "Unassigned";
+  };
+  const width = (m: ModuleView) => Math.max(boxWidth(m, subtitle(m)), peopleOf(m).length * 58);
   // Lay out again only when the structure changes, not on every render.
   const signature = JSON.stringify([
-    modules.map((m) => [m.id, m.group, boxWidth(m, subtitle(m))]),
+    direction,
+    modules.map((m) => [m.id, m.group, width(m)]),
     wires.map((w) => w.key),
   ]);
   const [layout, setLayout] = useState<{
@@ -234,7 +263,7 @@ export function ArchitectureView({
   useEffect(() => {
     let stale = false;
     layoutEngine()
-      .then((elk) => elk.layout(toElk(modules, wires, subtitle)))
+      .then((elk) => elk.layout(toElk(modules, wires, width, direction)))
       .then(
         (root) => {
           if (stale) return;
@@ -252,6 +281,16 @@ export function ArchitectureView({
     };
   }, [signature]);
 
+  if (failed) {
+    return <p className="text-sm text-muted">The diagram could not be laid out.</p>;
+  }
+  if (modules.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-hairline px-4 py-10 text-center text-sm text-muted">
+        No architecture has been described in the notes yet.
+      </p>
+    );
+  }
   const blocks = new Set(modules.flatMap((m) => (m.group ? [m.group] : [])));
   const shown = layout?.layout;
   const activate = (event: KeyboardEvent, moduleId: string) => {
@@ -260,9 +299,112 @@ export function ArchitectureView({
       onSelect(moduleId);
     }
   };
-  const owners = [...state.workspace.members.map((m) => m.id), null].map((owner) => ({
-    owner,
-    modules: live(state).filter((m) => m.owner === owner),
+  const shape = (module: ModuleView, block = false) => {
+    const box = shown?.boxes.get(module.id);
+    return (
+      box && (
+        <ModuleShape
+          key={module.id}
+          clip={`${clip}-${module.id}`}
+          module={module}
+          box={box}
+          stripes={peopleOf(module).map((member) => ({ member, color: colors[member] ?? MUTED }))}
+          subtitle={subtitle(module)}
+          change={previous ? changes.get(module.id) : undefined}
+          selected={module.id === selected}
+          faded={!!focus && !peopleOf(module).includes(focus)}
+          block={block}
+          onSelect={onSelect}
+          onKey={activate}
+        />
+      )
+    );
+  };
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-hairline bg-page">
+      {shown && (
+        <svg
+          viewBox={`0 0 ${shown.width} ${shown.height}`}
+          width="100%"
+          style={{ maxWidth: shown.width * 1.5, minWidth: Math.min(shown.width, 300) }}
+          className={`block ${layout.signature === signature ? "" : "opacity-60"}`}
+          aria-label={`Architecture with ${modules.length} modules`}
+        >
+          <defs>
+            {[
+              ["arch-arrow", "var(--color-ink-2)"],
+              ["arch-arrow-muted", MUTED],
+            ].map(([id, color]) => (
+              <marker
+                key={id}
+                id={id}
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M0,1 L9,5 L0,9 z" fill={color} />
+              </marker>
+            ))}
+          </defs>
+          {modules.filter((m) => blocks.has(m.id)).map((m) => shape(m, true))}
+          {wires.map((wire) => {
+            const points = shown.paths.get(wire.key);
+            if (!points) return null;
+            const ends = [wire.from, wire.to].map((id) => modules.find((m) => m.id === id));
+            const tentative = ends.some((m) => m?.status !== "adopted");
+            const faded = !!focus && !ends.some((m) => m && peopleOf(m).includes(focus));
+            return (
+              <path
+                key={`${wire.key}@${layout.version}`}
+                d={routePath(points)}
+                fill="none"
+                stroke={wire.kind === "removed" ? MUTED : "var(--color-ink-2)"}
+                strokeWidth={wire.kind === "added" ? 2.25 : 1.25}
+                strokeDasharray={tentative ? "5 4" : undefined}
+                opacity={wire.kind === "removed" || faded ? 0.35 : 1}
+                markerEnd={`url(#${wire.kind === "removed" ? "arch-arrow-muted" : "arch-arrow"})`}
+                className="appear"
+              />
+            );
+          })}
+          {modules.filter((m) => !blocks.has(m.id)).map((m) => shape(m))}
+        </svg>
+      )}
+    </div>
+  );
+}
+
+interface Props {
+  state: LineageState;
+  previous: LineageState | undefined;
+  colors: Record<string, string>;
+  selected: string | null;
+  editable: boolean;
+  onSelect: (moduleId: string) => void;
+  onAdd: () => void;
+}
+
+/** The architecture at one meeting of the history, with what that meeting changed. */
+export function ArchitectureView({
+  state,
+  previous,
+  colors,
+  selected,
+  editable,
+  onSelect,
+  onAdd,
+}: Props) {
+  const { name } = lookup(state);
+  const { changes } = useMemo(() => diagram(state, previous), [state, previous]);
+  const rows = [...state.workspace.members.map((m) => m.id), null].map((member) => ({
+    member,
+    modules: live(state).filter((m) =>
+      member ? peopleOf(m).includes(member) : peopleOf(m).length === 0,
+    ),
   }));
   const counts = {
     adopted: live(state).filter((m) => m.status === "adopted").length,
@@ -277,157 +419,38 @@ export function ArchitectureView({
           {counts.adopted} adopted · {counts.proposed} proposed
           {counts.changed > 0 && <> · {counts.changed} changed in this meeting</>}
         </p>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted">
-            {state.workspace.notion_page_id
-              ? "Edits are written back to Notion"
-              : "Edits are saved as session notes"}
-          </span>
-          <button
-            type="button"
-            onClick={onAdd}
-            disabled={!editable}
-            title={editable ? undefined : "Move to the latest meeting to edit"}
-            className="inline-flex items-center gap-1 rounded-lg border border-hairline px-2.5 py-1 text-sm text-ink hover:bg-wash disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Plus size={14} /> Add module
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={!editable}
+          title={editable ? undefined : "Move to the latest meeting to edit"}
+          className="inline-flex items-center gap-1 rounded-lg border border-hairline px-2.5 py-1 text-sm text-ink hover:bg-wash disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus size={14} /> Add module
+        </button>
       </div>
-
-      {failed && (
-        <p className="text-sm text-muted">
-          The diagram could not be laid out; the list below still holds every module.
-        </p>
-      )}
-      {modules.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-hairline px-4 py-10 text-center text-sm text-muted">
-          No architecture has been described in the notes yet at this meeting.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-hairline bg-page">
-          {shown && (
-            <svg
-              viewBox={`0 0 ${shown.width} ${shown.height}`}
-              width="100%"
-              style={{ maxWidth: shown.width, minWidth: Math.min(shown.width, 640) }}
-              className={`block ${layout.signature === signature ? "" : "opacity-60"}`}
-              aria-label={`Architecture with ${modules.length} modules`}
-            >
-              <defs>
-                {[
-                  ["arch-arrow", "var(--color-ink-2)"],
-                  ["arch-arrow-muted", MUTED],
-                ].map(([id, color]) => (
-                  <marker
-                    key={id}
-                    id={id}
-                    viewBox="0 0 10 10"
-                    refX="9"
-                    refY="5"
-                    markerWidth="7"
-                    markerHeight="7"
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M0,1 L9,5 L0,9 z" fill={color} />
-                  </marker>
-                ))}
-              </defs>
-
-              {modules
-                .filter((m) => blocks.has(m.id))
-                .map((module) => {
-                  const box = shown.boxes.get(module.id);
-                  return (
-                    box && (
-                      <ModuleShape
-                        key={module.id}
-                        module={module}
-                        box={box}
-                        color={colorOf(module)}
-                        subtitle={subtitle(module)}
-                        change={changes.get(module.id)}
-                        selected={module.id === selected}
-                        block
-                        onSelect={onSelect}
-                        onKey={activate}
-                      />
-                    )
-                  );
-                })}
-
-              {wires.map((wire) => {
-                const points = shown.paths.get(wire.key);
-                if (!points) return null;
-                const ends = [wire.from, wire.to].map((id) => modules.find((m) => m.id === id));
-                const tentative = ends.some((m) => m?.status !== "adopted");
-                return (
-                  <path
-                    key={`${wire.key}@${layout.version}`}
-                    d={routePath(points)}
-                    fill="none"
-                    stroke={wire.kind === "removed" ? MUTED : "var(--color-ink-2)"}
-                    strokeWidth={wire.kind === "added" ? 2.25 : 1.25}
-                    strokeDasharray={tentative ? "5 4" : undefined}
-                    opacity={wire.kind === "removed" ? 0.55 : 1}
-                    markerEnd={`url(#${wire.kind === "removed" ? "arch-arrow-muted" : "arch-arrow"})`}
-                    className="appear"
-                  />
-                );
-              })}
-
-              {modules
-                .filter((m) => !blocks.has(m.id))
-                .map((module) => {
-                  const box = shown.boxes.get(module.id);
-                  return (
-                    box && (
-                      <ModuleShape
-                        key={module.id}
-                        module={module}
-                        box={box}
-                        color={colorOf(module)}
-                        subtitle={subtitle(module)}
-                        change={changes.get(module.id)}
-                        selected={module.id === selected}
-                        onSelect={onSelect}
-                        onKey={activate}
-                      />
-                    )
-                  );
-                })}
-            </svg>
-          )}
-        </div>
-      )}
-
-      <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-ink-2">
-        <li className="flex items-center gap-1.5">
-          <LegendBox /> Adopted
-        </li>
-        <li className="flex items-center gap-1.5">
-          <LegendBox dashed /> Proposed
-        </li>
-        <li className="flex items-center gap-1.5">
-          <LegendBox dashed faded /> Removed in this meeting
-        </li>
-        <li>Box color = who builds it · thick arrow = new connection</li>
-      </ul>
-
+      <ArchitectureCanvas
+        state={state}
+        previous={previous}
+        colors={colors}
+        selected={selected}
+        onSelect={onSelect}
+      />
+      <Legend />
       <section>
         <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
-          Who builds what
+          Who works on what
         </h3>
         <ul className="space-y-1.5">
-          {owners
+          {rows
             .filter((row) => row.modules.length > 0)
             .map((row) => {
-              const color = (row.owner && colors[row.owner]) || MUTED;
+              const color = (row.member && colors[row.member]) || MUTED;
               return (
-                <li key={row.owner ?? "none"} className="flex items-start gap-3 text-sm">
+                <li key={row.member ?? "none"} className="flex items-start gap-3 text-sm">
                   <span className="flex w-32 shrink-0 items-center gap-1.5 pt-0.5 text-ink-2">
                     <Dot color={color} />
-                    <span className="truncate">{row.owner ? name(row.owner) : "Unassigned"}</span>
+                    <span className="truncate">{row.member ? name(row.member) : "Unassigned"}</span>
                   </span>
                   <span className="flex flex-wrap gap-1.5">
                     {row.modules.map((module) => (
@@ -458,6 +481,30 @@ export function ArchitectureView({
   );
 }
 
+/** How to read the diagram: stripes are people, dashes are proposals, VS is a contest. */
+export function Legend({ removed = true }: { removed?: boolean }) {
+  return (
+    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2">
+      <li className="flex items-center gap-1.5">
+        <LegendBox /> Adopted
+      </li>
+      <li className="flex items-center gap-1.5">
+        <LegendBox dashed /> Proposed
+      </li>
+      {removed && (
+        <li className="flex items-center gap-1.5">
+          <LegendBox dashed faded /> Removed
+        </li>
+      )}
+      <li className="flex items-center gap-1.5">
+        <span className="rounded-full bg-ink px-1.5 text-[9px] font-bold text-surface">VS</span>
+        Competing approaches
+      </li>
+      <li>Stripe colors = who works on it</li>
+    </ul>
+  );
+}
+
 function LegendBox({ dashed = false, faded = false }: { dashed?: boolean; faded?: boolean }) {
   return (
     <svg width="22" height="14" aria-hidden="true">
@@ -477,22 +524,26 @@ function LegendBox({ dashed = false, faded = false }: { dashed?: boolean; faded?
 }
 
 function ModuleShape({
+  clip,
   module,
   box,
-  color,
+  stripes: people,
   subtitle,
   change,
   selected,
+  faded,
   block = false,
   onSelect,
   onKey,
 }: {
+  clip: string;
   module: ModuleView;
   box: Box;
-  color: string;
+  stripes: { member: string; color: string }[]; // one per member on the module
   subtitle: string;
   change: Change | undefined;
   selected: boolean;
+  faded: boolean;
   block?: boolean;
   onSelect: (id: string) => void;
   onKey: (event: KeyboardEvent, id: string) => void;
@@ -500,40 +551,73 @@ function ModuleShape({
   const removed = module.status === "removed";
   const dashed = removed || module.status === "proposed" ? "5 4" : undefined;
   const label = change && CHANGE_LABEL[change];
+  const stripes = people.length ? people : [{ member: "nobody", color: MUTED }];
+  const stripe = box.width / stripes.length;
+  const radius = block ? 12 : 8;
+  const badges = [module.contested && !removed ? "VS" : null, label].filter(Boolean) as string[];
   return (
     // biome-ignore lint/a11y/useSemanticElements: SVG has no <button>; role + key handlers make the box operable
     <g
       role="button"
       tabIndex={0}
-      aria-label={`${module.title}, ${subtitle}${label ? `, ${label.toLowerCase()} in this meeting` : ""}`}
+      aria-label={`${module.title}, ${subtitle}${module.contested ? ", competing approaches" : ""}${
+        label ? `, ${label.toLowerCase()} in this meeting` : ""
+      }`}
       onClick={() => onSelect(module.id)}
       onKeyDown={(event) => onKey(event, module.id)}
       className="cursor-pointer outline-none"
+      opacity={faded ? 0.3 : 1}
       style={{
         transform: `translate(${box.x}px, ${box.y}px)`,
-        transition: "transform 450ms ease-out",
+        transition: "transform 450ms ease-out, opacity 200ms",
       }}
     >
       <title>{module.note ? `${module.title}: ${module.note}` : module.title}</title>
+      <clipPath id={clip}>
+        <rect width={box.width} height={box.height} rx={radius} />
+      </clipPath>
       {selected && (
         <rect
           x={-4}
           y={-4}
           width={box.width + 8}
           height={box.height + 8}
-          rx={block ? 15 : 11}
+          rx={radius + 3}
           fill="none"
           stroke="var(--color-ink)"
           strokeWidth={2}
         />
       )}
+      {!removed && (
+        <g clipPath={`url(#${clip})`}>
+          {stripes.map(({ member, color }, index) => (
+            <g key={member}>
+              <rect
+                x={index * stripe}
+                width={stripe}
+                height={box.height}
+                style={{ fill: tint(color, block ? 7 : 24) }}
+              />
+              {!block && (
+                <rect
+                  x={index * stripe}
+                  y={box.height - 4}
+                  width={stripe}
+                  height={4}
+                  fill={color}
+                />
+              )}
+            </g>
+          ))}
+        </g>
+      )}
       <rect
         width={box.width}
         height={box.height}
-        rx={block ? 12 : 8}
-        style={{ fill: removed ? "var(--color-surface)" : tint(color, block ? 6 : 15) }}
-        stroke={color}
-        strokeWidth={1.5}
+        rx={radius}
+        fill="none"
+        stroke={module.contested && !removed ? "var(--color-ink)" : "var(--color-ink-2)"}
+        strokeWidth={module.contested && !removed ? 2 : 1.25}
         strokeDasharray={dashed}
         opacity={removed ? 0.55 : 1}
       />
@@ -548,31 +632,35 @@ function ModuleShape({
       </text>
       <text
         x={12}
-        y={block ? 32 : 35}
+        y={block ? 32 : 34}
         className="fill-ink-2 text-[10.5px]"
         opacity={removed ? 0.6 : 1}
       >
         {subtitle}
       </text>
-      {label && (
-        <g transform={`translate(${box.width - 4}, -11)`}>
-          <rect
-            x={-(label.length * 6.2 + 12)}
-            width={label.length * 6.2 + 12}
-            height={15}
-            rx={7.5}
-            fill={removed ? MUTED : "var(--color-ink)"}
-          />
-          <text
-            x={-6}
-            y={10.5}
-            textAnchor="end"
-            className="fill-surface text-[9px] font-bold tracking-wide"
-          >
-            {label}
-          </text>
-        </g>
-      )}
+      {badges.map((badge, index) => {
+        const right =
+          box.width - 4 - badges.slice(0, index).reduce((sum, b) => sum + badgeWidth(b) + 4, 0);
+        return (
+          <g key={badge} transform={`translate(${right}, -11)`}>
+            <rect
+              x={-badgeWidth(badge)}
+              width={badgeWidth(badge)}
+              height={15}
+              rx={7.5}
+              fill={removed ? MUTED : "var(--color-ink)"}
+            />
+            <text
+              x={-6}
+              y={10.5}
+              textAnchor="end"
+              className="fill-surface text-[9px] font-bold tracking-wide"
+            >
+              {badge}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }

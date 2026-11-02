@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Converge for Notion",
+  "version": "0.2.0",
+  "description": "Your team's briefing, next steps, and shared work beside your Notion meeting notes.",
+  "permissions": ["sidePanel", "tabs"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "panel.html" },
+  "action": { "default_title": "Open Converge beside this page" }
+}

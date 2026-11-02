@@ -8,6 +8,7 @@ import {
   fetchSource,
   type IdeaStatus,
   type LineageState,
+  type Member,
   type OpKind,
   type Source,
   type Stance,
@@ -19,14 +20,17 @@ import {
 const SERIES = [1, 2, 3, 4, 5].map((slot) => `var(--color-series-${slot})`);
 export const NEUTRAL = "var(--color-ink-2)";
 
+/** Whether a member leads the lab: their role says PI, or the notes call them "Prof.". */
+export const isPi = (member: Member) =>
+  /\bPI\b/.test(member.role) || /^Prof\.?\s/.test(member.name);
+
 /** Owner color per member, in roster order and never cycled. The PI moderates rather than
  * competes, so PI-owned ideas take neutral ink and the validated hues go to the students. */
 export function memberColors(workspace: Workspace): Record<string, string> {
   const colors: Record<string, string> = {};
   let slot = 0;
   for (const member of workspace.members) {
-    const isPi = /\bPI\b/.test(member.role);
-    colors[member.id] = isPi || slot >= SERIES.length ? NEUTRAL : SERIES[slot++];
+    colors[member.id] = isPi(member) || slot >= SERIES.length ? NEUTRAL : SERIES[slot++];
   }
   return colors;
 }
@@ -430,7 +434,8 @@ export function IdeaPanel({ state, ideaId, colors, onSelectIdea, onOpenQuote }: 
 interface SourceViewerProps {
   workspaceId: string;
   sourceId: string;
-  line: number;
+  line: number; // 0 when only the quote is known
+  quote?: string;
   onClose: () => void;
 }
 
@@ -510,7 +515,7 @@ function NoteLine({
 }
 
 /** The original note with the quoted line highlighted: every claim can be checked at its source. */
-export function SourceViewer({ workspaceId, sourceId, line, onClose }: SourceViewerProps) {
+export function SourceViewer({ workspaceId, sourceId, line, quote, onClose }: SourceViewerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const target = useRef<HTMLLIElement>(null);
   const [source, setSource] = useState<Source | null>(null);
@@ -529,6 +534,10 @@ export function SourceViewer({ workspaceId, sourceId, line, onClose }: SourceVie
   }, [source]);
 
   const lines = source ? source.text.split("\n").map((text, i) => ({ number: i + 1, text })) : [];
+  if (!line && quote) {
+    const start = quote.slice(0, 40);
+    line = lines.find((l) => l.text.includes(start))?.number ?? 0;
+  }
 
   return (
     <dialog
