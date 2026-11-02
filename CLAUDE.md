@@ -22,6 +22,7 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 
 | 목적 | 명령 (repo root 기준) |
 |---|---|
+| **설치 + 실행 (처음 사용자)** | `./start.sh` → 없는 도구 설치, key 입력(`.env` 생성), build, demo 적재 후 http://localhost:8000 |
 | backend 실행 (dev) | `cd backend && uv run uvicorn app.main:app --reload` → http://localhost:8000/docs |
 | frontend 실행 (dev) | `cd frontend && npm run dev` → http://localhost:5173 (`/api`는 :8000으로 proxy) |
 | 배포용 build | `cd frontend && npm run build` → FastAPI가 `frontend/dist`를 http://localhost:8000 에서 serve |
@@ -30,11 +31,13 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 | Notion import | `cd backend && uv run python -m app.ingest notion <page_id> --team <team.json>` |
 | demo 회의록을 Notion에 복사 | `cd backend && uv run python -m app.ingest push-notion <page_id> [--scenario <name>]` |
 | 편집을 Notion page에 기록하도록 연결 | `cd backend && uv run python -m app.ingest link-notion <workspace_id> <page_id>` (`""`로 해제) |
+| Muse Spark로 분석 + briefing (Update 버튼과 같음) | `cd backend && uv run python -m app.ingest analyze <workspace_id> [--fresh]` |
+| Notion 옆 side panel | Chrome `chrome://extensions` → 개발자 모드 → "압축해제된 확장 프로그램 로드" → `extension/` |
 | Python lint·format | `cd backend && uv run ruff format . && uv run ruff check --fix .` |
 | TS lint·format | `cd frontend && npm run check` |
 
 - Node는 WSL 안의 nvm 설치본을 쓴다. Windows 쪽 npm(`/mnt/c/...`)은 쓰지 않는다.
-- 환경 변수는 repo root의 `.env`에 둔다 (템플릿: `.env.example`).
+- 환경 변수는 repo root의 `.env`에 둔다. 처음 `./start.sh`를 실행하면 key를 물어보고 만든다 (`MODEL_API_KEY`, `NOTION_TOKEN`, 선택: `CONVERGE_DB`, `MODEL_NAME`).
 - 확인·실험용 서버는 `CONVERGE_DB=<임시 파일>`로 별도 DB를 쓴다. 기본 DB(`data/converge.db`)는 사용자의 개발 서버가 쓴다.
 
 ## Git 규칙
@@ -78,6 +81,6 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 - LLM 입출력과 API 데이터는 `models.py`의 Pydantic model로 정의한다.
 - **No quote, no claim**: LLM이 만든 모든 주장은 원문 quote + source id를 가져야 하고, 검증에 실패하면 버린다.
 - 실제 연구 노트에는 `-contributor` 모델을 쓰지 않는다 (입력이 Meta 학습에 사용됨). standard model만 쓴다.
-- Secret은 `.env`(git 제외)에만 두고, 필요한 key 목록은 `.env.example`에 적는다.
+- Secret은 `.env`(git 제외)에만 둔다. 필요한 key는 `start.sh`가 묻고 README에 적는다.
 - Python은 type hint 필수. 주석은 "왜"만 쓴다.
 - commit 전에 lint·format·test를 통과시킨다.

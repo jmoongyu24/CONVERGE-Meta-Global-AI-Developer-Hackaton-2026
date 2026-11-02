@@ -13,7 +13,8 @@
 - **남은 시간**: 약 3.5일. Must 기능(F0~F6)과 제출(F8)에 집중하고, 11/4 20:00 KST에 feature freeze.
 - **진행 순서**: Meta API key(credit)가 오기 전에는 key 없이 되는 작업(F0a → F1 → F3 → F4 → F5)을 먼저 한다. F1의 gold label을 F2(LLM) 출력과 같은 schema로 만들어서, key 없이도 engine·API·UI를 실제와 같은 데이터로 개발한다. key가 오면 F2가 같은 schema를 만들도록 연결하고, gold와 비교한 결과가 곧 F7 eval이 된다.
 - **모델 학습**: 없음. 모든 AI 기능은 Meta Model API 호출로 구현.
-- **진행 현황 (11/1)**: F0a · F1 · F3 · F4 · F5 · F9 완료. Notion 실제 연동 확인 (시나리오 A 11개 page, 시나리오 B 10개 page를 표·이미지·토글·하위 page까지 올리고 다시 import해서 원본과 일치, 편집 write-back 확인). 남은 것은 key가 필요한 F0b · F2 · F6 · F7과 F8.
+- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F9 · F10 완료. Meta API key 도착(11/2) → Muse Spark로 분석·briefing·Converge Room 동작 확인, Notion page 연결 → Update → Converge → Adopt 전체 흐름 실제 확인 (지금까지 API 비용 약 $0.85). 남은 것은 F7(eval) · F8(제출).
+- **UX 원칙 (사용자, 11/2)**: 기능 수보다 "한눈에 들어오는 화면"과 "설치·연결·Update만으로 끝나는 사용 경험"이 우선. 첫 화면은 ① 지금 상황 ② 나의 다음 할 일 ③ 공동 작업 그림(module을 참여자 색으로 세로 분할) ④ 경합 중인 것 ⑤ 사람별 아이디어·다음 단계만 보여주고, timeline·matrix는 History로 뺀다.
 
 ---
 
@@ -110,6 +111,7 @@
 | F7 | Eval | Should | gold 대비 정량 평가, README에 결과 표 | — |
 | F8 | Ship | Must | 배포(demo mode), README, demo 영상, 제출 | — |
 | F9 | Architecture Canvas | Must (11/1 추가) | 회의록(표·토글·이미지·하위 page 포함)에서 아키텍처 graph 추출, 시점별 diff, 담당자 색, 함께 편집 + Notion write-back | muse-spark-1.3 (vision) |
+| F10 | Now 화면 + Notion 옆 panel | Must (11/2 추가) | 한 화면 briefing(상황·나의 다음 할 일·그림·경합·사람별), Update 버튼, Notion page 연결, Chrome side panel 확장, `start.sh` 한 줄 설치 | muse-spark-1.3 |
 | S1 | 화이트보드·figure 이해 | Could | Notion 이미지 → Spark vision으로 내용 추출, SAM 3.1로 영역 grounding (노드 클릭 → 사진 영역 highlight) | muse-spark-1.3, sam-3.1 |
 | S2 | Idea concept diagram | → F9 | F9 Architecture Canvas로 확장되어 구현 | muse-spark-1.3 |
 | S3 | Graphical abstract | Could | 채택된 수렴안의 개념 이미지 | muse-image-1.0 |
@@ -275,11 +277,12 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - WSL에 Node LTS 설치(nvm), `backend/`(uv + FastAPI)·`frontend/`(Vite + React + Tailwind) 초기화, `.gitignore`·`.env.example`
 - **DoD**: `/api/health` 응답, `npm run dev` 화면에서 API 연결 상태 `ok`, `npm run build` 결과를 FastAPI가 serve
 
-### F0b. LLM client + smoke test (key 도착 후) · 1h
+### F0b. LLM client + smoke test · 완료 (11/2)
 
 - `llm.py`: openai SDK로 Meta Model API 호출, Pydantic schema 기반 structured output, SQLite cache, retry, token·비용 로깅
 - smoke test로 확인할 것: ① structured output 문법 (Responses vs Chat Completions) ② streaming ③ muse-wonder-1.0 접근 가능 여부
-- **DoD**: smoke test 3항목 결과 확인
+- **결과**: Chat Completions + `response_format: json_schema (strict)`가 동작하고 Pydantic schema(`$defs` 포함)를 그대로 받는다. 이미지는 `image_url`(data URI)로 입력되고, 화이트보드 스케치에서 module과 연결을 정확히 읽었다. `reasoning_effort`(minimal/low/medium/high), `max_completion_tokens`, streaming 지원. 쓸 수 있는 model은 muse-spark-1.1~1.3(+contributor), sam-3.1, muse-image-1.0, muse-voice-transcribe-1.0이고 **muse-wonder-1.0은 없음** → F6도 Spark 사용
+- `llm.py`: SQLite cache(같은 요청은 무료), retry(429·5xx·timeout), schema 검증 실패 시 오류를 보여주고 재요청, 호출별 token·비용·시간 기록(`llm_calls`), contributor model 차단
 
 ### F1. Ingest + Demo dataset · 11/2(월) 오전 · 3h
 
@@ -292,13 +295,18 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - **DoD**: demo 3개 시나리오 import 완료 (11/1). Notion은 Markdown ↔ block 변환을 28개 회의록 round trip test로 검증했고, 실제 연동도 test page 'Meta AI Hackaton Test' 아래 시나리오 A 11개 page로 확인 완료 (회의 시각·모든 줄 일치)
 - 추가 (11/1, F9와 함께): 토글 `▸`, 표(`| a | b |`), 이미지(`![caption](assets/x.png)`), 하위 page(`📄 제목` + 내용), column·synced block, equation, link block까지 변환. 이미지는 import할 때 내려받아 DB(assets)에 저장하고, push할 때는 Notion File Upload API로 올린다. 한 요청에 2단계까지만 중첩할 수 있는 API 제약은 깊은 block을 나눠 보내서 해결. 시나리오 B 10개 page(토글 속 표, bullet 속 이미지, 표·이미지가 든 하위 page)를 올리고 다시 import해서 모든 줄과 이미지 byte까지 일치 확인
 
-### F2. Extract & Link · 11/2(월) 오후 · 4h
+### F2. Extract & Link · 완료 (11/3)
 
 - `pipeline.py`: 회의별 prompt 구성 (줄 번호, 명단, registry, 현재 아키텍처) → structured output → quote 검증 → ops 적용. 회의록 속 이미지는 Spark에 image 입력으로 함께 보내고, 아키텍처 변경(`modules`)도 같은 호출에서 추출한다
 - session note(UI 편집 기록)는 이미 정확한 analysis가 있으므로 LLM 처리에서 제외
 - 실패 대비: schema 검증에 실패하면 오류 메시지를 붙여 재요청 (최대 2회), 존재하지 않는 idea id 참조 차단
 - key가 늦게 오면: prompt·schema·검증 코드를 먼저 작성해 두고, key가 오면 실행·튜닝만 한다
 - **DoD**: demo dataset 전체 처리 → ideas·mentions·edges 생성, quote 검증 통과율 ≥ 95%, 재실행 시 전부 cache hit (비용 0)
+- **구현 (설계 변경)**: 회의를 하나씩 부르지 않고, 회의록 묶음(약 30k자, demo는 팀당 1번)을 한 번에 읽는다 → 아이디어 id가 회의 사이에 일관되고 시간·비용이 줄어든다 (팀당 약 1분, $0.04~0.05). 이미지도 함께 입력. 두 번째 호출이 briefing(Board: 문제, 상황, 사람별 아이디어·다음 할 일, 경합)을 쓴다 ($0.03~0.04)
+- module에 **contribution**(누가 어떤 접근으로 참여하는지 + quote)을 추가. 서로 다른 아이디어를 가진 참여자가 한 module에 있으면 경합(contested)으로 표시 → 화면에서 세로 색 분할 + VS
+- quote 보정: 정확히 일치하지 않으면 따옴표·대시 차이를 무시하고 원문 문장을 찾거나(유사도 ≥ 0.85) 버린다. briefing의 모든 문장도 같은 검증을 거치고, 근거가 없으면 버린다
+- 증분 처리: 회의록 text hash를 저장해서 새로 생기거나 바뀐 회의부터만 다시 읽는다 (`--fresh`로 전체 재분석)
+- 결과 (demo 3개): quote 검증 실패 0~4건, 시나리오 B의 encoder module이 Sora·Amir(Transformer) vs Daniel(recurrent memory) 경합으로, 시나리오 C의 simulator가 3명 경합으로 정확히 묶임. Notion page를 연결해 처음부터 돌린 경우(team.json 없이 회의록에서 팀원 4명과 별칭 추론) 2분, $0.11
 
 ### F3. Lineage & Insights + API · 완료 (11/1)
 
@@ -340,12 +348,23 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - demo 데이터: 3개 시나리오에 module 변경 82개(gold), 표·토글 5곳, 화이트보드·figure 이미지 4장, 하위 page 1개 추가. 시나리오 B는 RNN encoder → LSTM → GRU + soft attention → Transformer block(multi-head self-attention·feed-forward)과 recurrent memory의 경합까지 그려진다
 - **DoD**: pytest 23개 통과 (module replay·time travel·block 삭제·잘못된 module 차단·rich block 변환·이미지 API·편집 API), 3개 시나리오와 편집 session을 headless Chrome으로 캡처해서 확인, Notion 왕복(시나리오 B)·write-back 실제 확인
 
-### F6. Converge Room · 11/4(수) 오전~오후 · 6h
+### F10. Now 화면 + Notion 옆 panel · 완료 (11/3)
 
+- 첫 화면(Now): 지금 상황(문제·진행) → 나의 다음 할 일("I am" 선택, 근거 quote) → 공동 작업 그림(module = 참여자 색 세로 분할, 경합은 VS, 사람 카드를 누르면 그 사람의 module만 강조, module을 누르면 사람별 접근과 quote) → 경합 중인 것(편·입장·결정 시점) → 사람별 아이디어·다음 단계 → 맨 아래 Update 버튼(진행 단계 표시)
+- History: 기존 Lineage · Team · Architecture(time slider, 편집)를 그대로 이동
+- 연결: Notion page link를 붙여 넣으면 workspace 생성 → 바로 Update. 하위 page, database 행, page 하나 모두 지원
+- Chrome side panel 확장(`extension/`): Notion 탭 옆에 Converge를 띄우고, 열린 page가 속한 팀의 Now 화면을 보여주거나 연결을 제안. 좁은 panel에서는 그림이 위→아래로 배치되고 Update 버튼이 아래에 고정
+- 설치: `./start.sh` 한 줄 (uv 설치, key 입력 → `.env`, build, demo 적재, 실행). `.env.example`은 삭제
+
+### F6. Converge Room · 완료 (11/3)
+
+- 사용자 생각 반영 (11/2): Now 화면의 "경합 중인 것" 카드에서 바로 시작한다. 결과는 "그래서 각자 무엇을 하면 되나"로 끝나야 한다 → 수렴안 = 결정 + module별 담당(그림의 색 분할이 바뀜) + 사람별 다음 할 일. Adopt하면 session note로 기록되고 Notion에도 써진다
 - `converge.py`: Round 1~3 orchestration, SSE streaming, 수렴안 schema, Adopt → merge 반영, agenda 생성
 - `ConvergeView.tsx`: 아이디어 선택 → 토론 live stream (agent별 말풍선 + citation chip, 클릭하면 원문) → 수렴안 카드 비교 → Adopt
 - 수렴안에 "아키텍처 변경 + module별 담당자"를 포함해서, Adopt하면 F9 diagram에 바로 반영되게 한다 (F9의 편집 경로 재사용)
 - **DoD**: demo dataset에서 3명의 아이디어를 수렴하는 session이 2분 안에 끝나고, delegate 주장의 citation이 전부 유효
+- **구현**: Now 화면의 경합 카드 → "Converge on this" → delegate(사람마다 1명, 그 사람의 기록만 입력) 2라운드 병렬 호출 → facilitator가 수렴안 2개(결정, 이유 + quote, 사람별 다음 할 일과 module, 예상 수용도, 위험). quote가 검증되지 않은 발언은 "unsupported"로 흐리게 표시하고, 근거 없는 이유는 버린다. Adopt → session note(결정 + 사람별 "Next for …" 줄) + Notion write-back → module 참여 내용과 할 일이 바뀌고 briefing을 다시 쓴다. `?converge=<id>`로 끝난 Room을 다시 연다
+- 결과: 시나리오 B(3명) 약 1분 $0.06, 시나리오 A(2명) $0.04. delegate 6개 중 4~5개가 quote로 뒷받침되고, 근거가 부족하면 "본인에게 물어봐야 한다"고 말한다. muse-wonder-1.0이 없어서 facilitator도 Spark(reasoning medium)
 
 ### F7. Eval · 11/4(수) · 2h
 
