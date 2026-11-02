@@ -1,12 +1,13 @@
 """Tests for ingest, storage, the lineage and architecture engine, and the API (no network,
 no LLM)."""
 
+import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import store
+from app import llm, pipeline, store
 from app.ingest import (
     DEMO_DIR,
     blocks_to_markdown,
@@ -17,8 +18,25 @@ from app.ingest import (
     markdown_to_blocks,
 )
 from app.main import app
-from app.models import LineageState, ModuleOp, SourceAnalysis, StanceShift
-from app.pipeline import build_state
+from app.models import (
+    Acceptance,
+    Assignment,
+    Board,
+    Claim,
+    Contribution,
+    Evidence,
+    Extraction,
+    IdeaOp,
+    LineageState,
+    ModuleOp,
+    PersonFocus,
+    Position,
+    Proposal,
+    SourceAnalysis,
+    StanceShift,
+    Synthesis,
+)
+from app.pipeline import build_state, check_board, repair_quote
 
 SCENARIOS = demo_folders()
 
@@ -379,3 +397,248 @@ def test_edits_become_quoted_session_notes(tmp_path: Path, monkeypatch: pytest.M
     )
     assert leo["latest"] == "challenge" and leo["source"] == added["source"]
     assert client.get(f"{base}/revision").json()["revision"] != before
+
+
+# --- Reading notes with the model (no network: the model is faked) ---------------
+
+
+def test_strict_schema_requires_every_field() -> None:
+    schema = llm.strict_schema(SourceAnalysis)
+    objects = [schema, *schema["$defs"].values()]
+    assert all(set(o["required"]) == set(o["properties"]) for o in objects)
+    assert all(o["additionalProperties"] is False for o in objects)
+    assert "default" not in str(schema)
+    assert "title" in schema["$defs"]["IdeaOp"]["properties"]  # a field named title survives
+
+
+def test_repair_quote_finds_what_the_model_retyped() -> None:
+    text = "- Leo: Learning a policy per task sounds expensive.\nMina said it's \u201cfine\u201d."
+    assert repair_quote(text, "sounds expensive") == "sounds expensive"
+    assert repair_quote(text, 'Mina said it\'s "fine".') == "Mina said it's \u201cfine\u201d."
+    assert repair_quote(text, "Learning a policy per task sound expensive") is not None
+    assert repair_quote(text, "nobody wrote this sentence at all") is None
+
+
+def test_contributions_mark_competing_modules() -> None:
+    workspace, sources = load_markdown_folder(DEMO_DIR / "sim-to-real")
+    first, second = sources[0], sources[1]
+    analyses = {
+        first.id: SourceAnalysis(
+            source=first.id,
+            ops=[
+                IdeaOp(
+                    op="new",
+                    idea="dr",
+                    title="DR",
+                    owner="hana",
+                    quote="massive domain randomization",
+                ),
+                IdeaOp(
+                    op="new",
+                    idea="sysid",
+                    title="Sys ID",
+                    owner="marco",
+                    quote="system identification",
+                ),
+            ],
+            modules=[
+                ModuleOp(
+                    op="add",
+                    module="sim",
+                    title="Simulator",
+                    quote="Policies are trained in simulation",
+                    contributions=[
+                        Contribution(
+                            member="hana",
+                            approach="randomize widely",
+                            idea="dr",
+                            quote="massive domain randomization",
+                        ),
+                        Contribution(
+                            member="marco",
+                            approach="calibrate contact",
+                            idea="sysid",
+                            quote="system identification",
+                        ),
+                        Contribution(member="nobody", approach="x", quote="system identification"),
+                    ],
+                )
+            ],
+        ),
+        second.id: SourceAnalysis(
+            source=second.id,
+            modules=[
+                ModuleOp(
+                    op="update",
+                    module="sim",
+                    quote="Hana agreed to drop it.",
+                    contributions=[
+                        Contribution(member="marco", approach="", quote="Hana agreed to drop it.")
+                    ],
+                )
+            ],
+        ),
+    }
+    early = build_state(workspace, sources, analyses, as_of=first.id)
+    sim = next(m for m in early.modules if m.id == "sim")
+    assert [c.member for c in sim.contributions] == ["hana", "marco"] and sim.contested
+    assert len(early.issues) == 1  # the unknown member's contribution
+    later = next(m for m in build_state(workspace, sources, analyses, second.id).modules)
+    assert [c.member for c in later.contributions] == ["hana"] and not later.contested
+
+
+def test_briefing_keeps_only_claims_whose_quotes_check_out() -> None:
+    workspace, sources = load_markdown_folder(DEMO_DIR / "sim-to-real")
+    kickoff = sources[0]
+    good = Evidence(source=kickoff.id, quote="Peg-in-hole insertion with 0.5 mm clearance")
+    bad = Evidence(source=kickoff.id, quote="a sentence nobody wrote")
+    board = Board(
+        problem=Claim(text="Tight insertion", evidence=[good, bad]),
+        status=Claim(text="Invented", evidence=[bad]),
+        people=[
+            PersonFocus(
+                member="Hana", idea=Claim(text="DR", evidence=[good]), next=[], modules=["x"]
+            ),
+            PersonFocus(member="Stranger", idea=None, next=[], modules=[]),
+        ],
+        contests=[],
+    )
+    checked, issues = check_board(board, workspace, sources, modules=set())
+    assert checked.problem is not None and checked.problem.evidence == [good]
+    assert checked.status is None
+    assert [p.member for p in checked.people] == ["hana"] and checked.people[0].modules == []
+    assert len(issues) == 4  # two missing quotes, the dropped status, the unknown member
+
+
+def fake_model(calls: list[str]):
+    """Stands in for llm.complete: answers extraction calls with one decision per note and
+    briefing calls with a one-claim board."""
+
+    def complete(messages, output, *, purpose, **_):
+        calls.append(purpose)
+        text = messages[-1]["content"]
+        text = text if isinstance(text, str) else text[0]["text"]
+        if output is Extraction:
+            ids = [line.split()[2] for line in text.splitlines() if line.startswith("=== SOURCE")]
+            return Extraction(analyses=[SourceAnalysis(source=i) for i in ids]), llm.Usage(
+                cost=0.01
+            )
+        quote = "Peg-in-hole insertion with 0.5 mm clearance"
+        claim = Claim(
+            text="Insertion", evidence=[Evidence(source="2026-03-04-kickoff", quote=quote)]
+        )
+        return Board(problem=claim, status=None, people=[], contests=[]), llm.Usage(cost=0.02)
+
+    return complete
+
+
+def test_update_reads_only_new_notes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "update.db")
+    calls: list[str] = []
+    monkeypatch.setattr(llm, "complete", fake_model(calls))
+    with store.connect() as conn:
+        load_demo(conn)
+    progress: list[dict] = []
+    board = pipeline.update_workspace("sim-to-real", lambda **p: progress.append(p))
+    assert board.problem is not None and board.issues == []
+    assert [c.split()[0] for c in calls] == ["extract", "board"]
+    with store.connect() as conn:
+        assert len(store.list_bases(conn, "sim-to-real", "llm")) == 7
+        assert store.get_board(conn, "sim-to-real", "llm") == board
+    assert progress[-1]["cost"] == 0.03
+    pipeline.update_workspace("sim-to-real", lambda **p: None)
+    assert [c.split()[0] for c in calls][2:] == ["board"]  # nothing new to read
+
+
+def test_update_job_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "job.db")
+    monkeypatch.setattr(llm, "complete", fake_model([]))
+    with store.connect() as conn:
+        load_demo(conn)
+    client = TestClient(app)
+    base = "/api/workspaces/sim-to-real"
+    assert client.get(f"{base}/board").status_code == 404
+    assert client.post(f"{base}/update").json()["state"] == "running"
+    for _ in range(100):
+        status = client.get(f"{base}/update").json()
+        if status["state"] != "running":
+            break
+        time.sleep(0.05)
+    assert status["state"] == "done", status
+    assert client.get(f"{base}/board").json()["problem"]["text"] == "Insertion"
+    assert client.get(f"{base}/state").json()["issues"] == []  # replays the model's analyses
+
+
+# --- Converge Room ------------------------------------------------------------------
+
+
+def test_converge_room_runs_and_adoption_lands_on_the_board(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "room.db")
+    quote = "Calibrate the simulator's contact parameters from a few real rollouts"
+
+    def complete(messages, output, *, purpose, **_):
+        if output is Position:
+            claimed = [Evidence(source="2026-03-04-kickoff", quote=quote)]
+            if "hana" in purpose:  # this delegate invents a quote and must be marked unsupported
+                claimed = [Evidence(source="2026-03-04-kickoff", quote="words nobody said")]
+            return Position(message="My view.", evidence=claimed), llm.Usage(cost=0.01)
+        if output is Synthesis:
+            proposal = Proposal(
+                title="Calibrate first",
+                decision="Calibrate, then randomize narrowly.",
+                why=Claim(text="Precision", evidence=[Evidence(source="nowhere", quote="x")]),
+                assignments=[
+                    Assignment(member="marco", step="identify brass", module="simulator"),
+                    Assignment(member="ghost", step="haunt", module=None),
+                ],
+                acceptance=[Acceptance(member="marco", likely="yes", reason="his line")],
+                risk="Overfits one material.",
+            )
+            return Synthesis(proposals=[proposal]), llm.Usage(cost=0.02)
+        return fake_model([])(messages, output, purpose=purpose)
+
+    monkeypatch.setattr(llm, "complete", complete)
+    with store.connect() as conn:
+        load_demo(conn)
+    client = TestClient(app)
+    base = "/api/workspaces/sim-to-real"
+    room = client.post(
+        f"{base}/converge",
+        json={"question": "DR or system ID?", "members": ["hana", "marco"], "module": None},
+    ).json()
+    for _ in range(100):
+        room = client.get(f"{base}/converge/{room['id']}").json()
+        if room["state"] != "running":
+            break
+        time.sleep(0.05)
+    assert room["state"] == "done", room
+    assert [(t["member"], t["round"], t["supported"]) for t in room["turns"]] == [
+        ("hana", 1, False),
+        ("marco", 1, True),
+        ("hana", 2, False),
+        ("marco", 2, True),
+    ]
+    proposal = room["proposals"][0]
+    assert proposal["why"] is None  # its only quote did not check out
+    assert [a["member"] for a in proposal["assignments"]] == ["marco"]
+    assert proposal["assignments"][0]["module"] == "simulator"
+
+    adopted = client.post(
+        f"{base}/converge/{room['id']}/adopt", json={"proposal": 0, "member": "okafor"}
+    )
+    assert adopted.status_code == 200, adopted.text
+    assert "Prof. Okafor adopted in the Converge Room: Calibrate first." in adopted.json()["line"]
+    for _ in range(100):
+        if client.get(f"{base}/update").json()["state"] != "running":
+            break
+        time.sleep(0.05)
+    # The fake model's own analyses are empty, so read the picture the gold labels draw.
+    state = client.get(f"{base}/state", params={"origin": "gold"}).json()
+    marco = [i for i in state["items"] if i["kind"] == "action" and i["member"] == "marco"]
+    assert marco and marco[-1]["quote"].endswith("Next for Marco Rossi: identify brass")
+    simulator = next(m for m in state["modules"] if m["id"] == "simulator")
+    assert ("marco", "identify brass") in [
+        (c["member"], c["approach"]) for c in simulator["contributions"]
+    ]

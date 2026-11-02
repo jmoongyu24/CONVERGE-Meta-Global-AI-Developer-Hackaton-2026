@@ -92,6 +92,16 @@ class Item(BaseModel):
     module: str | None = None
 
 
+class Contribution(BaseModel):
+    """What one member builds or proposes for a module. Members on one module collaborate when
+    their approaches serve the same idea and compete when they pursue different ideas."""
+
+    member: str
+    approach: str  # one line in the notes' terms; "" means the member stopped working on it
+    idea: str | None = None  # the research idea this approach belongs to
+    quote: str
+
+
 class ModuleOp(BaseModel):
     """A change to the team's architecture: one module (a layer, component, or stage) and the
     modules that feed into it. On update, None keeps a field and "" clears it."""
@@ -105,6 +115,7 @@ class ModuleOp(BaseModel):
     inputs: list[str] | None = None  # modules that feed this one; replaces the list when given
     group: str | None = None  # enclosing module, e.g. the encoder block holding its layers
     idea: str | None = None  # the research idea this module implements
+    contributions: list[Contribution] = Field(default_factory=list)  # changes per member
     quote: str
 
 
@@ -114,6 +125,18 @@ class SourceAnalysis(BaseModel):
     mentions: list[Mention] = Field(default_factory=list)
     items: list[Item] = Field(default_factory=list)
     modules: list[ModuleOp] = Field(default_factory=list)
+
+
+class Extraction(BaseModel):
+    """What the model returns for a batch of notes: one analysis per note, in order."""
+
+    analyses: list[SourceAnalysis]
+
+
+class Roster(BaseModel):
+    """The people the model finds in a team's notes, for workspaces without a team file."""
+
+    members: list[Member]
 
 
 class Gold(BaseModel):
@@ -183,6 +206,15 @@ class LocatedModuleOp(ModuleOp):
     line: int
 
 
+class ModuleContribution(BaseModel):
+    member: str
+    approach: str
+    idea: str | None
+    source: str  # where the member last stated it
+    line: int
+    quote: str
+
+
 class ModuleView(BaseModel):
     """A module as it stands after replay; removed modules stay listed so the UI can show
     what a meeting took out."""
@@ -198,6 +230,8 @@ class ModuleView(BaseModel):
     born: str  # source where the module first appeared
     changed: str  # latest source that changed it
     history: list[LocatedModuleOp]
+    contributions: list[ModuleContribution] = Field(default_factory=list)
+    contested: bool = False  # contributors pursue two or more different ideas
 
 
 class Digest(BaseModel):
@@ -249,3 +283,139 @@ class EditResult(BaseModel):
     line: str
     module: str  # the module the edit changed or added
     notion: Literal["synced", "failed", "off"]
+
+
+# --- Briefing: what the team sees first (pipeline.write_board) -----------------
+
+
+class Evidence(BaseModel):
+    source: str  # Source.id
+    quote: str  # copied exactly from that source
+
+
+class Claim(BaseModel):
+    """A sentence the model wrote, kept only if at least one quote checks out."""
+
+    text: str
+    evidence: list[Evidence]
+
+
+class PersonFocus(BaseModel):
+    member: str
+    idea: Claim | None  # the approach or position the member is pushing now
+    next: list[Claim]  # their next one to three steps, most important first
+    modules: list[str]  # modules they work on
+
+
+class ContestSide(BaseModel):
+    members: list[str]
+    position: str  # what this side wants, a few words
+
+
+class Contest(BaseModel):
+    """An open disagreement that still needs a decision."""
+
+    question: str
+    module: str | None  # where the competing approaches meet in the architecture, if anywhere
+    sides: list[ContestSide]
+    decide_by: str | None  # when or how the notes say it gets decided
+    evidence: list[Evidence]
+
+
+class Board(BaseModel):
+    problem: Claim | None  # the research problem the team works on now
+    status: Claim | None  # where things stand: what is settled, what is pending, what is next
+    people: list[PersonFocus]
+    contests: list[Contest]
+
+
+class BoardState(Board):
+    """A board with its evidence located, as the API serves it."""
+
+    workspace: str
+    origin: str  # whose analyses it was written from: "gold" or "llm"
+    as_of: str  # latest source it covers
+    written_at: datetime
+    issues: list[str]  # claims and quotes dropped because they did not check out
+
+
+class UpdateStatus(BaseModel):
+    """Progress of the Update button's job: import, analysis, briefing."""
+
+    state: Literal["idle", "running", "done", "failed"]
+    step: str = ""
+    done: int = 0
+    total: int = 0
+    error: str | None = None
+    cost: float = 0.0  # dollars spent by this run
+
+
+# --- Converge Room (converge.py) -----------------------------------------------
+
+
+class Position(BaseModel):
+    """What a member's delegate says in one round, backed by the member's own words."""
+
+    message: str
+    evidence: list[Evidence]
+
+
+class Assignment(BaseModel):
+    member: str
+    step: str  # their next concrete step under this proposal
+    module: str | None  # the module whose people this changes, if any
+
+
+class Acceptance(BaseModel):
+    member: str
+    likely: Literal["yes", "maybe", "no"]
+    reason: str
+
+
+class Proposal(BaseModel):
+    title: str
+    decision: str
+    why: Claim | None  # kept only if a quote backs it
+    assignments: list[Assignment]
+    acceptance: list[Acceptance]
+    risk: str
+
+
+class Synthesis(BaseModel):
+    """The facilitator's answer: different ways to settle the question."""
+
+    proposals: list[Proposal]
+
+
+class Turn(BaseModel):
+    member: str
+    round: int
+    message: str
+    evidence: list[Evidence]
+    supported: bool  # at least one of its quotes checked out
+
+
+class ConvergeRequest(BaseModel):
+    question: str
+    members: list[str]
+    module: str | None = None
+
+
+class ConvergeSession(BaseModel):
+    id: str
+    workspace: str
+    question: str
+    members: list[str]
+    module: str | None
+    state: Literal["running", "done", "failed"]
+    step: str = ""
+    turns: list[Turn] = Field(default_factory=list)
+    proposals: list[Proposal] = Field(default_factory=list)
+    adopted: int | None = None
+    error: str | None = None
+    cost: float = 0.0
+
+
+class AdoptRequest(BaseModel):
+    proposal: int  # index into the session's proposals
+    member: str  # who adopted it

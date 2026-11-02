@@ -5,6 +5,7 @@ Usage, from backend/:
     uv run python -m app.ingest notion <page-id> --team path/to/team.json
     uv run python -m app.ingest push-notion <page-id> [--scenario sim-to-real]
     uv run python -m app.ingest link-notion <workspace-id> <page-id>
+    uv run python -m app.ingest analyze <workspace-id>        # what the Update button does
 """
 
 import argparse
@@ -17,7 +18,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import httpx
-from notion_client import Client
+from notion_client import APIResponseError, Client
 
 from app import REPO_ROOT, store
 from app.models import Asset, Gold, Source, SourceAnalysis, Workspace
@@ -379,31 +380,63 @@ def page_time(page: dict, title: str, body: list[str]) -> datetime:
     return note_time([title, *body]) or wall_time(page["created_time"])
 
 
-def import_notion(parent_page_id: str) -> tuple[list[Source], list[Asset]]:
-    """Each child page of the given page becomes one Source, with its toggles, tables,
-    images, and sub-pages. Databases are not read yet."""
+def page_title(page: dict) -> str:
+    for prop in page.get("properties", {}).values():
+        if prop.get("type") == "title":
+            return plain_text(prop["title"]) or "Untitled"
+    return "Untitled"
+
+
+def database_pages(client: Client, database_id: str) -> list[dict]:
+    """The row pages of a Notion database, from all of its data sources."""
+    pages: list[dict] = []
+    for data_source in client.databases.retrieve(database_id=database_id).get("data_sources", []):
+        cursor = None
+        while True:
+            paging = {"start_cursor": cursor} if cursor else {}
+            batch = client.data_sources.query(data_source_id=data_source["id"], **paging)
+            pages += [row for row in batch["results"] if row.get("object") == "page"]
+            if not batch.get("has_more"):
+                break
+            cursor = batch["next_cursor"]
+    return pages
+
+
+def page_source(client: Client, page: dict, assets: dict[str, Asset]) -> Source:
+    """One Notion page with everything inside it (toggles, tables, images, sub-pages)."""
+    title = page_title(page)
+    blocks = fetch_blocks(client, page["id"])
+    localize_images(blocks, assets)
+    body = blocks_to_markdown(blocks)
+    return Source(
+        id=page["id"],
+        occurred_at=page_time(page, title, body),
+        title=title,
+        text="\n".join([f"# {title}", "", *body]),
+        url=page.get("url"),
+    )
+
+
+def import_notion(page_id: str) -> tuple[list[Source], list[Asset]]:
+    """The notes under one Notion page: each child page and each row of a child database
+    becomes one Source. A page without either is a single Source itself, and a database id
+    reads the database's rows. Databases are how many labs keep meeting notes."""
     client = notion()
-    sources: list[Source] = []
     assets: dict[str, Asset] = {}
-    for block in fetch_blocks(client, parent_page_id, nested=False):
-        if block["type"] != "child_page":
-            continue
-        title = block["child_page"]["title"]
-        if title.startswith(SESSION_TITLE):
-            continue  # mirrors of edits already stored as session notes
-        page = client.pages.retrieve(page_id=block["id"])
-        blocks = fetch_blocks(client, block["id"])
-        localize_images(blocks, assets)
-        body = blocks_to_markdown(blocks)
-        sources.append(
-            Source(
-                id=block["id"],
-                occurred_at=page_time(page, title, body),
-                title=title,
-                text="\n".join([f"# {title}", "", *body]),
-                url=page.get("url"),
-            )
-        )
+    try:
+        top = client.pages.retrieve(page_id=page_id)
+    except APIResponseError:  # not a page: maybe the id of a database
+        rows = database_pages(client, page_id)
+        sources = [page_source(client, row, assets) for row in rows]
+        return sorted(sources, key=lambda s: s.occurred_at), list(assets.values())
+    pages: list[dict] = []
+    for block in fetch_blocks(client, page_id, nested=False):
+        if block["type"] == "child_page":
+            if not block["child_page"]["title"].startswith(SESSION_TITLE):  # Converge's own mirrors
+                pages.append(client.pages.retrieve(page_id=block["id"]))
+        elif block["type"] == "child_database":
+            pages += database_pages(client, block["id"])
+    sources = [page_source(client, page, assets) for page in pages or [top]]
     return sorted(sources, key=lambda s: s.occurred_at), list(assets.values())
 
 
@@ -523,9 +556,23 @@ def main() -> None:
     )
     link.add_argument("workspace_id")
     link.add_argument("page_id")
+    analyze = commands.add_parser(
+        "analyze", help="read a workspace's notes with the model and write its briefing"
+    )
+    analyze.add_argument("workspace_id")
+    analyze.add_argument("--fresh", action="store_true", help="read every note again")
     args = parser.parse_args()
 
     try:
+        if args.command == "analyze":
+            from app import pipeline  # imported here: pipeline itself imports this module
+
+            def report(**progress: object) -> None:
+                print("  ".join(f"{key}={value}" for key, value in progress.items()), flush=True)
+
+            board = pipeline.update_workspace(args.workspace_id, report, fresh=args.fresh)
+            print(board.model_dump_json(indent=2))
+            return
         if args.command == "push-notion":
             for folder in demo_folders():
                 if args.scenario and folder.name not in args.scenario:

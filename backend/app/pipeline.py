@@ -1,18 +1,34 @@
-"""Replay per-source analyses into the team's idea lineage and architecture.
+"""Read a team's notes with the model, check every claim against the notes, and replay the
+results into the team's idea lineage, architecture, and briefing.
 
 Each SourceAnalysis works like a commit: replaying them in time order rebuilds the idea
-registry and the architecture diagram as they stood after any source, which is what the
-UI's time slider shows. The LLM extraction (F2) will produce these analyses; until then the
-hand-labelled gold drives it. Edits made in the UI become analyses of a session note.
+registry and the architecture as they stood after any source, which is what the UI's time
+slider shows. Muse Spark writes these analyses from the notes (images included); the
+hand-labelled gold has the same shape and is the yardstick. Edits made in the UI become
+analyses of a session note. The briefing (Board) is written last, from the replayed state
+and the latest notes.
 """
 
+import hashlib
 import re
 from collections import Counter, defaultdict
+from collections.abc import Callable
+from datetime import datetime
+from difflib import SequenceMatcher
 
+from app import ingest, llm, store
 from app.models import (
+    Asset,
+    Board,
+    BoardState,
+    Claim,
+    Contest,
+    ContestSide,
     Digest,
     Edge,
     EditRequest,
+    Evidence,
+    Extraction,
     IdeaOp,
     IdeaVersion,
     IdeaView,
@@ -21,9 +37,13 @@ from app.models import (
     LocatedItem,
     LocatedMention,
     LocatedModuleOp,
+    Member,
     Mention,
+    ModuleContribution,
     ModuleOp,
     ModuleView,
+    PersonFocus,
+    Roster,
     Source,
     SourceAnalysis,
     SourceMeta,
@@ -34,6 +54,89 @@ from app.models import (
 
 DORMANT_AFTER = 3  # an active idea untouched for this many sources is shown as dormant
 PARENT_COUNTS = {"new": range(0, 1), "branch": range(1, 2), "merge": range(2, 100)}
+BATCH_CHARS = 30_000  # notes per extraction call: small enough to finish in about a minute
+RECENT_NOTES = 3  # the briefing reads the latest notes in full, the rest through the state
+
+EXTRACT_PROMPT = """You turn a research team's notes into a structured history: the ideas they \
+argue about, who stands where, and the system they are building. A program replays your answer \
+note by note, checks every quote against the note, and drops anything it cannot find there.
+
+Return one analysis per note, in the order given, with:
+
+ops: changes to the idea registry.
+- new: a research direction someone argues for (a method, model, or approach; not a task or \
+a result). No parents.
+- branch: a new idea derived from exactly one existing idea. merge: a new idea that combines \
+two or more existing ideas.
+- update: an existing idea was refined; give title or summary only when they changed.
+- park: put on hold. drop: abandoned.
+Reuse registry ids for existing ideas; new ideas get short kebab-case ids. owner = the member \
+who proposed it.
+
+mentions: each member's stance on an idea in this note: propose (puts it forward), support, \
+refine (improves it), question (asks without taking a side), challenge (argues against it), \
+inform (reports facts or results without taking a side).
+
+items: question (still open), decision (settled), action (who will do what next; member = \
+who), consensus (the whole team agreed). Link the idea and module an item is about.
+
+modules: the architecture of what the team builds: components, layers, stages, tools, data, \
+and benchmarks, and how work flows between them (inputs = the modules that feed this one). \
+Every idea that changes what the team builds appears here: as its own module when it adds \
+a part (a residual model added on top of a simulator), or as a contribution to an existing \
+module when it is another way to build that part (two different encoders are one "encoder" \
+module with two contributions). add a module when it first appears; update its title, note, \
+status (adopted once the team's main system uses it, proposed while it is discussed), \
+inputs, or people when they change; remove it when the team takes it out. Reuse registry \
+module ids. A project usually has 4 to 12 modules; fold small details into a module's note. \
+Wire the modules: every module except the starting ones (tasks, data, simulators) lists its \
+inputs, so the diagram reads from where work starts to where results come out.
+
+contributions (inside a module op): each member who proposes, builds, runs, or champions \
+an approach for that module in this note: approach in one plain line, plus the idea it \
+belongs to. Members pursuing different ideas on one module are competing; members working \
+on the same idea are collaborating. Use approach "" when someone stops working on it.
+
+Example. Note: "Ana: swap our CNN encoder for a transformer. Ben: keep the CNN, add \
+attention pooling. Chen will rebuild the data loader for longer clips." Modules: update \
+"encoder" with contributions ana "replace the CNN with a transformer" (idea \
+transformer-encoder) and ben "keep the CNN, add attention pooling" (idea attention-pooling); \
+update "data-loader" with contribution chen "rebuild it for longer clips".
+
+Every entry, and every contribution, has a quote: words copied exactly, character for \
+character, from that note (for something shown in an image, its caption line), 4 to 30 \
+words, no ellipses. Leave out anything you cannot quote.
+
+Use member ids from the roster ("I" and "me" are the note-taker). Use only idea and module \
+ids that are in the registry or that you introduced earlier in this answer. Report what the \
+notes say; do not guess at intentions they do not state. Write titles, summaries, notes, and \
+approaches in the language of the notes."""
+
+BOARD_PROMPT = """You write the briefing a research team sees beside its notes: the few things \
+a member needs in order to know where things stand and what to do next. Weigh the latest \
+notes most; older notes count only where they still hold.
+
+Return:
+- problem: the research problem the team is solving now, in one plain sentence.
+- status: where things stand, in at most two sentences: what is settled, what is still \
+open, and the next decision or deadline.
+- people: one entry per roster member, in roster order, with member = their roster id. \
+idea: the approach or position they push now, in one line. next: their next one to three \
+concrete steps, most important first, from action items and commitments in the latest \
+notes. modules: ids of the modules they work on.
+- contests: open disagreements that still need a decision, most important first, at most \
+three: the question in plain words, the module where the competing approaches meet (if \
+any), each side's member ids and position in a few words, and decide_by when the notes say \
+when or how it will be decided.
+
+Every claim needs evidence: one to three quotes copied exactly, character for character, \
+from the notes, each with its source id; prefer the latest notes. Leave out what you cannot \
+support. Write in the language of the notes."""
+
+ROSTER_PROMPT = """List the people who take part in these research meeting notes. For each: \
+id (first name in lowercase ASCII), name as written, role if the notes state it (PI, PhD \
+student, MS student, ...), and aliases (other ways the notes refer to them, such as initials \
+or "Prof"). Leave out people who only appear as authors of cited papers."""
 
 
 def locate(text: str, quote: str) -> int | None:
@@ -96,9 +199,14 @@ def remove_module(modules: dict[str, ModuleView], module_id: str, source_id: str
 
 
 def apply_module_op(
-    op: LocatedModuleOp, modules: dict[str, ModuleView], members: set[str], ideas: set[str]
+    op: LocatedModuleOp,
+    modules: dict[str, ModuleView],
+    members: set[str],
+    ideas: set[str],
+    contributions: list[ModuleContribution],
 ) -> list[str]:
-    """Apply a valid module op. References that do not resolve are left out and reported."""
+    """Apply a valid module op with its checked contributions. References that do not resolve
+    are left out and reported."""
     problems: list[str] = []
     live = {m.id for m in modules.values() if m.status != "removed"} - {op.module}
 
@@ -132,6 +240,7 @@ def apply_module_op(
             changed=op.source,
             history=[op],
         )
+        contribute(modules[op.module], contributions)
         return problems
     module = modules[op.module]
     module.changed = op.source
@@ -146,7 +255,15 @@ def apply_module_op(
     module.inputs = module.inputs if inputs is None else inputs
     module.group = module.group if group is None else group or None
     module.idea = module.idea if idea is None else idea or None
+    contribute(module, contributions)
     return problems
+
+
+def contribute(module: ModuleView, contributions: list[ModuleContribution]) -> None:
+    """Record what each member now does on the module; an empty approach means they stopped."""
+    for contribution in contributions:
+        kept = [c for c in module.contributions if c.member != contribution.member]
+        module.contributions = [*kept, contribution] if contribution.approach else kept
 
 
 def build_state(
@@ -229,7 +346,25 @@ def build_state(
                 source=source.id,
                 line=locate(source.text, module_op.quote) or 0,
             )
-            for problem in apply_module_op(located_op, modules, members, set(ideas)):
+            contributions = []
+            for c in module_op.contributions:
+                line = locate(source.text, c.quote)
+                if line is None or c.member not in members:
+                    issues.append(
+                        f"{source.id}: contribution dropped (bad quote or member): {c.quote!r}"
+                    )
+                    continue
+                contributions.append(
+                    ModuleContribution(
+                        member=c.member,
+                        approach=c.approach.strip(),
+                        idea=c.idea if c.idea in ideas else None,
+                        source=source.id,
+                        line=line,
+                        quote=c.quote,
+                    )
+                )
+            for problem in apply_module_op(located_op, modules, members, set(ideas), contributions):
                 issues.append(
                     f"{source.id}: {module_op.op} module {module_op.module} kept without {problem}"
                 )
@@ -298,6 +433,8 @@ def build_state(
     for idea in ideas.values():
         if idea.status == "active" and cutoff - last_touched[idea.id] >= DORMANT_AFTER:
             idea.status = "dormant"
+    for module in modules.values():
+        module.contested = len({c.idea for c in module.contributions if c.idea}) > 1
 
     tallies: dict[tuple[str, str], Counter] = defaultdict(Counter)
     for mention in mentions:
@@ -468,3 +605,425 @@ def compose_edit(state: LineageState, edit: EditRequest, clock: str) -> tuple[st
             )
         )
     return line, analysis
+
+
+# --- Checking quotes -----------------------------------------------------------
+
+FOLD = str.maketrans(
+    {
+        "\u2019": "'",
+        "\u2018": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u00a0": " ",
+    }
+)
+SENTENCE_END = re.compile(r"(?<=[.;!?])\s+")
+
+
+def folded(text: str) -> str:
+    return " ".join(text.translate(FOLD).replace("**", "").split()).lower()
+
+
+def repair_quote(text: str, quote: str) -> str | None:
+    """`quote` when it occurs in `text`; otherwise the sentence of `text` it was meant to copy
+    (the same words up to typography, or at least 85% alike), or None."""
+    if not quote.strip():
+        return None
+    if quote in text:
+        return quote
+    target = folded(quote)
+    # Sentences split at whitespace, so each one is a verbatim slice of the text.
+    pieces = [
+        piece
+        for line in text.splitlines()
+        for piece in SENTENCE_END.split(line.strip())
+        if piece.strip()
+    ]
+    for piece in pieces:
+        if target in folded(piece):
+            return piece
+    score, best = max(
+        ((SequenceMatcher(None, folded(piece), target).ratio(), piece) for piece in pieces),
+        default=(0.0, None),
+    )
+    return best if score >= 0.85 else None
+
+
+def member_index(workspace: Workspace) -> dict[str, str]:
+    """Every way the model may name a member (id, name, first name, alias) -> member id."""
+    index: dict[str, str] = {}
+    for member in workspace.members:
+        first = member.name.removeprefix("Prof. ").split()[0] if member.name else member.id
+        for name in [member.id, member.name, first, *member.aliases]:
+            index.setdefault(name.lower(), member.id)
+    return index
+
+
+def repair_analysis(analysis: SourceAnalysis, text: str, members: dict[str, str]) -> None:
+    """Point model quotes at the exact note text and model names at member ids, in place.
+    Whatever still does not check out is dropped later by the replay, with an issue."""
+    entries = [
+        *analysis.ops,
+        *analysis.mentions,
+        *analysis.items,
+        *analysis.modules,
+        *(c for m in analysis.modules for c in m.contributions),
+    ]
+    for entry in entries:
+        entry.quote = repair_quote(text, entry.quote) or entry.quote
+    for entry in [*analysis.mentions, *(c for m in analysis.modules for c in m.contributions)]:
+        entry.member = members.get(entry.member.lower(), entry.member)
+    for entry in [*analysis.ops, *analysis.modules]:
+        if entry.owner:
+            entry.owner = members.get(entry.owner.lower(), entry.owner)
+    for item in analysis.items:
+        if item.member:
+            item.member = members.get(item.member.lower(), item.member)
+
+
+# --- Reading notes with the model (F2) -------------------------------------------
+
+
+def roster_text(workspace: Workspace) -> str:
+    return "\n".join(
+        f"- {m.id}: {m.name}"
+        + (f" ({m.role})" if m.role else "")
+        + (f"; also called {', '.join(m.aliases)}" if m.aliases else "")
+        for m in workspace.members
+    )
+
+
+def registry_text(state: LineageState | None) -> str:
+    """The ideas and modules so far, so the model links new notes to them."""
+    if state is None:
+        return "(empty: these are the first notes)"
+    lines = ["Ideas:"]
+    lines += [
+        f"- {i.id} [{i.status}] {i.title} (owner: {i.owner or '?'}): {i.summary}"
+        for i in state.ideas
+    ] or ["- (none)"]
+    lines.append("Modules:")
+    for m in state.modules:
+        if m.status == "removed":
+            continue
+        people = "; ".join(f"{c.member}: {c.approach}" for c in m.contributions)
+        lines.append(
+            f"- {m.id} [{m.status}] {m.title}: {m.note} (inputs: {', '.join(m.inputs) or '-'}"
+            + (f"; inside: {m.group}" if m.group else "")
+            + (f"; people: {people}" if people else "")
+            + ")"
+        )
+    if len(lines) == 3:
+        lines.append("- (none)")
+    return "\n".join(lines)
+
+
+def note_text(source: Source) -> str:
+    when = f"{source.occurred_at:%Y-%m-%d %H:%M}"
+    return f"=== SOURCE {source.id} · {when} · {source.title} ===\n{source.text}"
+
+
+def note_images(source: Source, assets: Callable[[str], Asset | None]) -> list[dict]:
+    """The images a note embeds, each introduced by its name, as content parts."""
+    parts: list[dict] = []
+    for line in source.text.splitlines():
+        match = ingest.IMAGE_LINE.match(line.strip())
+        if match and match["url"].startswith("assets/"):
+            asset = assets(match["url"].removeprefix("assets/"))
+            if asset:
+                parts += [
+                    {"type": "text", "text": f"Image {match['url']} in SOURCE {source.id}:"},
+                    llm.image_part(asset),
+                ]
+    return parts
+
+
+def text_hash(source: Source) -> str:
+    return hashlib.sha256(source.text.encode()).hexdigest()[:16]
+
+
+def batches(sources: list[Source]) -> list[list[Source]]:
+    groups: list[list[Source]] = [[]]
+    for source in sources:
+        if groups[-1] and sum(len(s.text) for s in groups[-1]) + len(source.text) > BATCH_CHARS:
+            groups.append([])
+        groups[-1].append(source)
+    return [group for group in groups if group]
+
+
+def read_notes(
+    workspace: Workspace,
+    notes: list[Source],
+    state: LineageState | None,
+    assets: Callable[[str], Asset | None],
+) -> tuple[list[SourceAnalysis], llm.Usage]:
+    """One model call: analyses of `notes`, linked to the registry in `state`."""
+    content: list[dict] = [
+        {
+            "type": "text",
+            "text": f"Team roster:\n{roster_text(workspace)}\n\nRegistry so far:\n"
+            f"{registry_text(state)}\n\nNotes, oldest first:\n\n"
+            + "\n\n".join(note_text(note) for note in notes),
+        }
+    ]
+    for note in notes:
+        content += note_images(note, assets)
+    result, usage = llm.complete(
+        [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": content}],
+        Extraction,
+        purpose=f"extract {workspace.id} {notes[0].id}..{notes[-1].id}",
+        effort="low",
+        max_tokens=60000,
+    )
+    by_source = {analysis.source: analysis for analysis in result.analyses}
+    members = member_index(workspace)
+    analyses = []
+    for index, note in enumerate(notes):
+        # The model sometimes shortens source ids; fall back to the position in its answer.
+        analysis = by_source.get(note.id) or (
+            result.analyses[index] if index < len(result.analyses) else None
+        )
+        analysis = (analysis or SourceAnalysis(source=note.id)).model_copy(
+            update={"source": note.id}
+        )
+        repair_analysis(analysis, note.text, members)
+        analyses.append(analysis)
+    return analyses, usage
+
+
+def find_roster(sources: list[Source]) -> tuple[list[Member], llm.Usage]:
+    text = "\n\n".join(note_text(s) for s in sources)[:200_000]
+    roster, usage = llm.complete(
+        [{"role": "system", "content": ROSTER_PROMPT}, {"role": "user", "content": text}],
+        Roster,
+        purpose="roster",
+        effort="low",
+    )
+    seen: set[str] = set()
+    members = []
+    for member in roster.members:
+        member.id = slug(member.id) or slug(member.name)
+        if member.id not in seen:
+            seen.add(member.id)
+            members.append(member)
+    return members, usage
+
+
+# --- Briefing --------------------------------------------------------------------
+
+
+def state_text(state: LineageState) -> str:
+    """The replayed state in the words the briefing model needs."""
+    titles = {i.id: i.title for i in state.ideas}
+    lines = [registry_text(state), "Stances (latest per member and idea):"]
+    lines += [f"- {c.member} {c.latest} {titles.get(c.idea, c.idea)}" for c in state.stances]
+    open_items = [i for i in state.items if i.kind in ("question", "action", "decision")][-30:]
+    lines.append("Recent questions, decisions, and actions (oldest first):")
+    lines += [
+        f"- [{i.source}] {i.kind}{f' ({i.member})' if i.member else ''}: {i.quote}"
+        for i in open_items
+    ]
+    return "\n".join(lines)
+
+
+def checked_evidence(
+    found: list[Evidence], texts: dict[str, str], issues: list[str]
+) -> list[Evidence]:
+    """The evidence whose quotes occur in their sources, pointed at the exact text."""
+    kept = []
+    for e in found:
+        quote = repair_quote(texts[e.source], e.quote) if e.source in texts else None
+        if quote:
+            kept.append(Evidence(source=e.source, quote=quote))
+        else:
+            issues.append(f"quote not found in {e.source}: {e.quote!r}")
+    return kept
+
+
+def check_board(
+    board: Board, workspace: Workspace, sources: list[Source], modules: set[str]
+) -> tuple[Board, list[str]]:
+    """Keep only claims whose quotes check out against their sources ("no quote, no claim")."""
+    texts = {s.id: s.text for s in sources}
+    members = member_index(workspace)
+    issues: list[str] = []
+
+    def evidence(found: list[Evidence]) -> list[Evidence]:
+        return checked_evidence(found, texts, issues)
+
+    def claim(found: Claim | None, label: str) -> Claim | None:
+        if found is None:
+            return None
+        checked = evidence(found.evidence)
+        if not checked:
+            issues.append(f"{label} dropped: no quote checks out ({found.text!r})")
+            return None
+        return Claim(text=found.text, evidence=checked)
+
+    people = []
+    for person in board.people:
+        member = members.get(person.member.lower())
+        if member is None:
+            issues.append(f"unknown member {person.member!r}")
+            continue
+        steps = [claim(step, f"{member}'s next step") for step in person.next]
+        people.append(
+            PersonFocus(
+                member=member,
+                idea=claim(person.idea, f"{member}'s idea"),
+                next=[step for step in steps if step],
+                modules=[m for m in person.modules if m in modules],
+            )
+        )
+    contests = []
+    for contest in board.contests:
+        checked = evidence(contest.evidence)
+        sides = [
+            ContestSide(
+                members=[members[m.lower()] for m in side.members if m.lower() in members],
+                position=side.position,
+            )
+            for side in contest.sides
+        ]
+        if not checked:
+            issues.append(f"contest dropped: no quote checks out ({contest.question!r})")
+            continue
+        contests.append(
+            Contest(
+                question=contest.question,
+                module=contest.module if contest.module in modules else None,
+                sides=[side for side in sides if side.members],
+                decide_by=contest.decide_by,
+                evidence=checked,
+            )
+        )
+    order = {m.id: i for i, m in enumerate(workspace.members)}
+    people.sort(key=lambda p: order.get(p.member, len(order)))
+    checked_board = Board(
+        problem=claim(board.problem, "problem"),
+        status=claim(board.status, "status"),
+        people=people,
+        contests=contests,
+    )
+    return checked_board, issues
+
+
+def write_board(
+    workspace: Workspace,
+    sources: list[Source],
+    analyses: dict[str, SourceAnalysis],
+    origin: str,
+) -> tuple[BoardState, llm.Usage]:
+    state = build_state(workspace, sources, analyses)
+    timeline = "\n".join(f"- {s.id} · {s.occurred_at:%Y-%m-%d} · {s.title}" for s in sources)
+    recent = "\n\n".join(note_text(s) for s in sources[-RECENT_NOTES:])
+    board, usage = llm.complete(
+        [
+            {"role": "system", "content": BOARD_PROMPT},
+            {
+                "role": "user",
+                "content": f"Team roster:\n{roster_text(workspace)}\n\nAll notes, oldest "
+                f"first:\n{timeline}\n\nState after the latest note:\n{state_text(state)}"
+                f"\n\nThe latest notes in full:\n\n{recent}",
+            },
+        ],
+        Board,
+        purpose=f"board {workspace.id} {state.as_of}",
+        effort="medium",
+    )
+    modules = {m.id for m in state.modules if m.status != "removed"}
+    checked, issues = check_board(board, workspace, sources, modules)
+    return (
+        BoardState(
+            **checked.model_dump(),
+            workspace=workspace.id,
+            origin=origin,
+            as_of=state.as_of,
+            written_at=datetime.now().replace(microsecond=0),
+            issues=issues,
+        ),
+        usage,
+    )
+
+
+# --- The Update button -------------------------------------------------------------
+
+
+def update_workspace(
+    workspace_id: str, report: Callable[..., None], fresh: bool = False
+) -> BoardState:
+    """Import the workspace's Notion page (when linked), read every new or changed note with
+    the model (every note when `fresh`, e.g. after a prompt change), and write the briefing.
+    `report(step=..., done=..., total=..., cost=...)` is called as the work progresses."""
+    spent = 0.0
+
+    def charge(usage: llm.Usage) -> None:
+        nonlocal spent
+        spent += usage.cost
+        report(cost=round(spent, 4))
+
+    with store.connect() as conn:
+        workspace = store.get_workspace(conn, workspace_id)
+    if workspace is None:
+        raise ValueError(f"no workspace {workspace_id!r}")
+
+    if workspace.notion_page_id:
+        report(step="Reading the Notion page")
+        notes, images = ingest.import_notion(workspace.notion_page_id)
+        with store.connect() as conn:
+            store.save_sources(conn, workspace.id, notes)
+            store.save_assets(conn, workspace.id, images)
+
+    with store.connect() as conn:
+        sources = store.list_sources(conn, workspace.id)
+        analyses = store.list_analyses(conn, workspace.id, "llm")
+        bases = store.list_bases(conn, workspace.id, "llm")
+    if not sources:
+        raise ValueError("the page has no notes yet")
+    notes = [s for s in sources if s.kind != "session"]
+
+    if not workspace.members:
+        report(step="Finding the team in the notes")
+        members, usage = find_roster(notes)
+        charge(usage)
+        workspace = workspace.model_copy(update={"members": members})
+        with store.connect() as conn:
+            store.save_workspace(conn, workspace)
+
+    # A changed note changes what every later note links to, so read from the first change on.
+    stale = [i for i, s in enumerate(notes) if fresh or bases.get(s.id) != text_hash(s)]
+    todo = notes[stale[0] :] if stale else []
+    done = len(notes) - len(todo)
+
+    def asset(name: str) -> Asset | None:
+        with store.connect() as conn:
+            return store.get_asset(conn, workspace.id, name)
+
+    for batch in batches(todo):
+        report(
+            step=f"Reading notes {done + 1}-{done + len(batch)} of {len(notes)}",
+            done=done,
+            total=len(notes),
+        )
+        known = [s for s in sources if s.occurred_at < batch[0].occurred_at]
+        before = build_state(workspace, known, analyses) if known else None
+        results, usage = read_notes(workspace, batch, before, asset)
+        charge(usage)
+        analyses.update({a.source: a for a in results})
+        with store.connect() as conn:
+            store.save_analyses(
+                conn, workspace.id, "llm", results, {s.id: text_hash(s) for s in batch}
+            )
+        done += len(batch)
+
+    report(step="Writing the briefing", done=len(notes), total=len(notes))
+    with store.connect() as conn:
+        analyses.update(store.list_analyses(conn, workspace.id, "user"))
+    board, usage = write_board(workspace, sources, analyses, "llm")
+    charge(usage)
+    with store.connect() as conn:
+        store.save_board(conn, board)
+    return board

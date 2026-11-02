@@ -9,7 +9,15 @@ from datetime import datetime
 from pathlib import Path
 
 from app import REPO_ROOT
-from app.models import Asset, Member, Source, SourceAnalysis, Workspace
+from app.models import (
+    Asset,
+    BoardState,
+    ConvergeSession,
+    Member,
+    Source,
+    SourceAnalysis,
+    Workspace,
+)
 
 # CONVERGE_DB points a server at another database, e.g. a scratch copy for tests or demos.
 DB_PATH = Path(os.environ.get("CONVERGE_DB") or REPO_ROOT / "data" / "converge.db")
@@ -46,6 +54,7 @@ CREATE TABLE IF NOT EXISTS analyses (
     source_id    TEXT NOT NULL,
     origin       TEXT NOT NULL,
     analysis     TEXT NOT NULL,
+    basis        TEXT,  -- hash of the source text the model read; NULL for hand labels
     PRIMARY KEY (workspace_id, source_id, origin),
     FOREIGN KEY (workspace_id, source_id) REFERENCES sources (workspace_id, id) ON DELETE CASCADE
 );
@@ -56,6 +65,33 @@ CREATE TABLE IF NOT EXISTS assets (
     media_type   TEXT NOT NULL,
     data         BLOB NOT NULL,
     PRIMARY KEY (workspace_id, name)
+);
+-- The latest briefing per workspace and origin (BoardState JSON).
+CREATE TABLE IF NOT EXISTS boards (
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    origin       TEXT NOT NULL,
+    board        TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, origin)
+);
+-- Converge Room sessions (ConvergeSession JSON), kept after the room closes.
+CREATE TABLE IF NOT EXISTS converge_sessions (
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    id           TEXT NOT NULL,
+    session      TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, id)
+);
+-- Every model response, keyed by a hash of the request: a repeated call costs nothing, and
+-- the rows double as the cost log.
+CREATE TABLE IF NOT EXISTS llm_calls (
+    key        TEXT PRIMARY KEY,
+    model      TEXT NOT NULL,
+    purpose    TEXT NOT NULL,
+    response   TEXT NOT NULL,
+    tokens_in  INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    cost       REAL NOT NULL,
+    seconds    REAL NOT NULL,
+    created_at TEXT NOT NULL
 );
 """
 
@@ -69,9 +105,10 @@ def connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
-    # Databases created before workspaces could be linked to Notion lack the column.
-    if "notion_page_id" not in {row[1] for row in conn.execute("PRAGMA table_info(workspaces)")}:
-        conn.execute("ALTER TABLE workspaces ADD COLUMN notion_page_id TEXT")
+    # Databases created by earlier versions lack these columns.
+    for table, column in [("workspaces", "notion_page_id"), ("analyses", "basis")]:
+        if column not in {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
     try:
         yield conn
         conn.commit()
@@ -197,15 +234,32 @@ def get_source(conn: sqlite3.Connection, workspace_id: str, source_id: str) -> S
 
 
 def save_analyses(
-    conn: sqlite3.Connection, workspace_id: str, origin: str, analyses: list[SourceAnalysis]
+    conn: sqlite3.Connection,
+    workspace_id: str,
+    origin: str,
+    analyses: list[SourceAnalysis],
+    bases: dict[str, str] | None = None,
 ) -> None:
-    """Store one analysis per source; analysing a source again replaces it."""
+    """Store one analysis per source; analysing a source again replaces it. `bases` records
+    which version of each source text the analysis read."""
     conn.executemany(
-        """INSERT INTO analyses (workspace_id, source_id, origin, analysis) VALUES (?, ?, ?, ?)
+        """INSERT INTO analyses (workspace_id, source_id, origin, analysis, basis)
+           VALUES (?, ?, ?, ?, ?)
            ON CONFLICT (workspace_id, source_id, origin)
-           DO UPDATE SET analysis = excluded.analysis""",
-        [(workspace_id, a.source, origin, a.model_dump_json()) for a in analyses],
+           DO UPDATE SET analysis = excluded.analysis, basis = excluded.basis""",
+        [
+            (workspace_id, a.source, origin, a.model_dump_json(), (bases or {}).get(a.source))
+            for a in analyses
+        ],
     )
+
+
+def list_bases(conn: sqlite3.Connection, workspace_id: str, origin: str) -> dict[str, str | None]:
+    rows = conn.execute(
+        "SELECT source_id, basis FROM analyses WHERE workspace_id = ? AND origin = ?",
+        (workspace_id, origin),
+    ).fetchall()
+    return {row["source_id"]: row["basis"] for row in rows}
 
 
 def list_analyses(
@@ -236,3 +290,59 @@ def get_asset(conn: sqlite3.Connection, workspace_id: str, name: str) -> Asset |
         "SELECT * FROM assets WHERE workspace_id = ? AND name = ?", (workspace_id, name)
     ).fetchone()
     return Asset(name=row["name"], media_type=row["media_type"], data=row["data"]) if row else None
+
+
+# --- Briefings and model calls -------------------------------------------------
+
+
+def save_board(conn: sqlite3.Connection, board: BoardState) -> None:
+    conn.execute(
+        """INSERT INTO boards (workspace_id, origin, board) VALUES (?, ?, ?)
+           ON CONFLICT (workspace_id, origin) DO UPDATE SET board = excluded.board""",
+        (board.workspace, board.origin, board.model_dump_json()),
+    )
+
+
+def get_board(conn: sqlite3.Connection, workspace_id: str, origin: str) -> BoardState | None:
+    row = conn.execute(
+        "SELECT board FROM boards WHERE workspace_id = ? AND origin = ?", (workspace_id, origin)
+    ).fetchone()
+    return BoardState.model_validate_json(row["board"]) if row else None
+
+
+def get_llm_call(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT response FROM llm_calls WHERE key = ?", (key,)).fetchone()
+    return row["response"] if row else None
+
+
+def save_llm_call(conn: sqlite3.Connection, key: str, **call: str | int | float) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO llm_calls
+           (key, model, purpose, response, tokens_in, tokens_out, cost, seconds, created_at)
+           VALUES (:key, :model, :purpose, :response, :tokens_in, :tokens_out, :cost, :seconds,
+                   :created_at)""",
+        {"key": key, **call},
+    )
+
+
+def spent(conn: sqlite3.Connection) -> float:
+    """Dollars spent on model calls so far."""
+    return conn.execute("SELECT coalesce(sum(cost), 0) FROM llm_calls").fetchone()[0]
+
+
+def save_converge(conn: sqlite3.Connection, session: ConvergeSession) -> None:
+    conn.execute(
+        """INSERT INTO converge_sessions (workspace_id, id, session) VALUES (?, ?, ?)
+           ON CONFLICT (workspace_id, id) DO UPDATE SET session = excluded.session""",
+        (session.workspace, session.id, session.model_dump_json()),
+    )
+
+
+def get_converge(
+    conn: sqlite3.Connection, workspace_id: str, session_id: str
+) -> ConvergeSession | None:
+    row = conn.execute(
+        "SELECT session FROM converge_sessions WHERE workspace_id = ? AND id = ?",
+        (workspace_id, session_id),
+    ).fetchone()
+    return ConvergeSession.model_validate_json(row["session"]) if row else None
