@@ -172,7 +172,8 @@ latest notes. Leave out what you cannot support. Write in the language of the no
 ROSTER_PROMPT = """List the people who take part in these research meeting notes. For each: \
 id (first name in lowercase ASCII), name as written, role if the notes state it (PI, PhD \
 student, MS student, ...), and aliases (other ways the notes refer to them, such as initials \
-or "Prof"). Leave out people who only appear as authors of cited papers."""
+or "Prof"). Leave out people who only appear as authors of cited papers. When a roster so \
+far is given, list only people who are not on it yet, and an empty list if there are none."""
 
 
 def locate(text: str, quote: str) -> int | None:
@@ -834,8 +835,14 @@ def read_notes(
     return analyses, usage
 
 
-def find_roster(sources: list[Source]) -> tuple[list[Member], llm.Usage]:
+def find_roster(
+    sources: list[Source], known: list[Member] | None = None
+) -> tuple[list[Member], llm.Usage]:
+    """The people in `sources`; with `known`, only those not on that roster yet."""
     text = "\n\n".join(note_text(s) for s in sources)[:200_000]
+    if known:
+        listed = "\n".join(f"- {m.name} ({', '.join(m.aliases)})" for m in known)
+        text = f"Roster so far:\n{listed}\n\nNotes:\n\n{text}"
     roster, usage = llm.complete(
         [{"role": "system", "content": ROSTER_PROMPT}, {"role": "user", "content": text}],
         Roster,
@@ -850,6 +857,26 @@ def find_roster(sources: list[Source]) -> tuple[list[Member], llm.Usage]:
             seen.add(member.id)
             members.append(member)
     return members, usage
+
+
+def merge_roster(known: list[Member], found: list[Member]) -> list[Member]:
+    """`known` plus the people in `found` it does not have yet. A person counts as known when
+    their name or an alias matches one on the roster (ids are first names, so two people can
+    share one); a new person whose id is taken gets a numbered one."""
+    names = {n.casefold() for m in known for n in [m.name, *m.aliases]}
+    ids = {m.id for m in known}
+    merged = list(known)
+    for member in found:
+        if {n.casefold() for n in [member.name, *member.aliases]} & names:
+            continue
+        base, number = member.id, 2
+        while member.id in ids:
+            member = member.model_copy(update={"id": f"{base}-{number}"})
+            number += 1
+        ids.add(member.id)
+        names |= {n.casefold() for n in [member.name, *member.aliases]}
+        merged.append(member)
+    return merged
 
 
 # --- Briefing --------------------------------------------------------------------
@@ -1040,17 +1067,21 @@ def update_workspace(
         raise ValueError("the page has no notes yet")
     notes = [s for s in sources if s.kind != "session"]
 
-    if not workspace.members:
-        report(step="Finding the team in the notes")
-        members, usage = find_roster(notes)
-        charge(usage)
-        workspace = workspace.model_copy(update={"members": members})
-        with store.connect() as conn:
-            store.save_workspace(conn, workspace)
-
     # A changed note changes what every later note links to, so read from the first change on.
     stale = [i for i, s in enumerate(notes) if fresh or bases.get(s.id) != text_hash(s)]
     todo = notes[stale[0] :] if stale else []
+
+    # New notes can bring new people; they join the roster before the notes are read, so the
+    # model attributes their words to them.
+    if not workspace.members or todo:
+        report(step="Finding the team in the notes")
+        found, usage = find_roster(todo or notes, workspace.members)
+        charge(usage)
+        members = merge_roster(workspace.members, found)
+        if members != workspace.members:
+            workspace = workspace.model_copy(update={"members": members})
+            with store.connect() as conn:
+                store.save_workspace(conn, workspace)
     done = len(notes) - len(todo)
 
     def asset(name: str) -> Asset | None:

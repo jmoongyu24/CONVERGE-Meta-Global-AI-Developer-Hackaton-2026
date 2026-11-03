@@ -29,10 +29,12 @@ from app.models import (
     Extraction,
     IdeaOp,
     LineageState,
+    Member,
     ModuleOp,
     PersonFocus,
     Position,
     Proposal,
+    Roster,
     SourceAnalysis,
     StanceShift,
     Step,
@@ -545,6 +547,8 @@ def fake_model(calls: list[str]):
         calls.append(purpose)
         text = messages[-1]["content"]
         text = text if isinstance(text, str) else text[0]["text"]
+        if output is Roster:
+            return Roster(members=[]), llm.Usage()
         if output is Extraction:
             ids = [line.split()[2] for line in text.splitlines() if line.startswith("=== SOURCE")]
             return Extraction(analyses=[SourceAnalysis(source=i) for i in ids]), llm.Usage(
@@ -569,13 +573,13 @@ def test_update_reads_only_new_notes(tmp_path: Path, monkeypatch: pytest.MonkeyP
     progress: list[dict] = []
     board = pipeline.update_workspace("sim-to-real", lambda **p: progress.append(p))
     assert board.problem is not None and board.issues == []
-    assert [c.split()[0] for c in calls] == ["extract", "board"]
+    assert [c.split()[0] for c in calls] == ["roster", "extract", "board"]
     with store.connect() as conn:
         assert len(store.list_bases(conn, "sim-to-real", "llm")) == 7
         assert store.get_board(conn, "sim-to-real", "llm") == board
     assert progress[-1]["cost"] == 0.03
     pipeline.update_workspace("sim-to-real", lambda **p: None)
-    assert [c.split()[0] for c in calls][2:] == ["board"]  # nothing new to read
+    assert [c.split()[0] for c in calls][3:] == ["board"]  # nothing new to read
 
 
 def test_update_job_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -670,3 +674,18 @@ def test_converge_room_runs_and_adoption_lands_on_the_board(
     assert ("marco", "identify brass") in [
         (c["member"], c["approach"]) for c in simulator["contributions"]
     ]
+
+
+def test_merge_roster_adds_only_new_people() -> None:
+    known = [
+        Member(id="daniel", name="Daniel Weber", aliases=["D"]),
+        Member(id="sora", name="Sora Ito"),
+    ]
+    found = [
+        Member(id="dan", name="Dan", aliases=["Daniel Weber"]),  # Daniel again
+        Member(id="daniel", name="Daniel Park"),  # a second Daniel
+        Member(id="lena", name="Lena Fox"),
+    ]
+    merged = pipeline.merge_roster(known, found)
+    assert [m.id for m in merged] == ["daniel", "sora", "daniel-2", "lena"]
+    assert merged[2].name == "Daniel Park"

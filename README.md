@@ -105,7 +105,7 @@ Every model call runs on Muse Spark (`muse-spark-1.3`) through the Meta Model AP
 | Call | Reads | Returns | Reasoning effort |
 |---|---|---|---|
 | Read the notes | The meetings in one call (up to 30,000 characters per batch; each demo team fits in one), their images as image input, and the ideas found so far | Each meeting's ideas with branch and merge links, stances, decisions, actions, questions, and module changes, every item with a quote | low |
-| Find the team | The notes of a newly connected page | Members and roles | low |
+| Find the team | New or changed notes, with the roster so far | People not on the roster yet, with roles and aliases | low |
 | Write the board | The replayed state and the three latest notes in full | Status headline, problem, agreed points, each person's idea and next steps, open questions with sides and stakes | medium |
 | Delegate, one per member, two rounds in parallel | That member's own statements and the other delegates' turns | A position with quotes | low |
 | Facilitator | The quote-checked turns | Two proposals: a decision, who does what next, likely acceptance, and the risk | medium |

@@ -18,15 +18,17 @@ import {
 
 // --- Color ---------------------------------------------------------------------
 
-const SERIES = [1, 2, 3, 4, 5].map((slot) => `var(--color-series-${slot})`);
+const SERIES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((slot) => `var(--color-series-${slot})`);
 export const NEUTRAL = "var(--color-ink-2)";
 
 /** Whether a member leads the lab: their role says PI, or the notes call them "Prof.". */
 export const isPi = (member: Member) =>
   /\bPI\b/.test(member.role) || /^Prof\.?\s/.test(member.name);
 
-/** Owner color per member, in roster order and never cycled. The PI moderates rather than
- * competes, so PI-owned ideas take neutral ink and the validated hues go to the students. */
+/** Owner color per member, in roster order and never cycled: up to ten members get their own
+ * hue, later ones neutral ink. The PI moderates rather than competes, so PI-owned ideas take
+ * neutral ink too. Hues 6-10 are darker and closer to the first five, so names always appear
+ * beside a color. */
 export function memberColors(workspace: Workspace): Record<string, string> {
   const colors: Record<string, string> = {};
   let slot = 0;
