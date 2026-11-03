@@ -75,6 +75,37 @@ def image_part(asset: Asset) -> dict:
     return {"type": "image_url", "image_url": {"url": f"data:{asset.media_type};base64,{data}"}}
 
 
+def post(body: dict[str, Any], headers: dict[str, str]) -> tuple[int, Any]:
+    """Send one request as a stream and put the answer back together. The API's gateway times
+    out a long silent request (504), and a stream keeps the connection busy while the model
+    thinks. Returns the status and the response as a non-streamed call would, or the error."""
+    streamed = {**body, "stream": True, "stream_options": {"include_usage": True}}
+    with httpx.stream(
+        "POST", f"{BASE_URL}/chat/completions", headers=headers, json=streamed, timeout=TIMEOUT
+    ) as response:
+        if response.status_code >= 400:
+            return response.status_code, response.read().decode(errors="replace")[:300]
+        parts: list[str] = []
+        finish: str | None = None
+        usage: dict[str, int] = {}
+        for line in response.iter_lines():
+            if not line.startswith("data:"):
+                continue
+            payload = line.removeprefix("data:").strip()
+            if payload == "[DONE]":
+                break
+            chunk = json.loads(payload)
+            usage = chunk.get("usage") or usage
+            for choice in chunk.get("choices") or []:
+                parts.append((choice.get("delta") or {}).get("content") or "")
+                finish = choice.get("finish_reason") or finish
+    message = {"content": "".join(parts)}
+    return response.status_code, {
+        "choices": [{"message": message, "finish_reason": finish}],
+        "usage": usage,
+    }
+
+
 def complete[T: BaseModel](
     messages: list[dict],
     output: type[T],
@@ -118,23 +149,20 @@ def complete[T: BaseModel](
     for attempt in range(RETRIES):
         started = time.monotonic()
         try:
-            response = httpx.post(
-                f"{BASE_URL}/chat/completions", headers=headers, json=body, timeout=TIMEOUT
-            )
+            status, data = post(body, headers)
         except httpx.TransportError as error:  # timeouts and dropped connections
             if attempt == RETRIES - 1:
                 raise LLMError(f"model API unreachable: {error}") from error
             time.sleep(2**attempt)
             continue
-        if response.status_code == 429 or response.status_code >= 500:
+        if status == 429 or status >= 500:
             if attempt == RETRIES - 1:
-                raise LLMError(f"model API error {response.status_code}: {response.text[:300]}")
+                raise LLMError(f"model API error {status}: {data}")
             time.sleep(2 ** (attempt + 1))
             continue
-        if response.status_code >= 400:
-            raise LLMError(f"model API error {response.status_code}: {response.text[:300]}")
+        if status >= 400:
+            raise LLMError(f"model API error {status}: {data}")
 
-        data = response.json()
         tokens = data.get("usage", {})
         price_in, price_out = PRICES.get(model, (0.0, 0.0))
         usage.tokens_in += tokens.get("prompt_tokens", 0)
