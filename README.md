@@ -55,6 +55,53 @@ the next steps to the session note and to Notion, and the board follows.
 Other edits made in Converge (assigning a module, asking a question, proposing a module) are
 written back to the Notion page the same way, as lines of a session note.
 
+## Evaluation
+
+The three demo teams (28 meetings) are hand-labelled with the same structure the model produces:
+ideas and how they branch and merge, each member's stance, decisions, actions, and questions,
+every label tied to a verbatim quote. `cd backend && uv run python -m app.evaluate` compares
+Muse Spark's analyses with those labels. The model names ideas in its own words, so its ideas are
+first matched to the labelled ones through the statements (meeting, line, speaker) they share.
+
+| Metric | long-term-dependency | self-organizing-agents | sim-to-real | Mean |
+|---|---|---|---|---|
+| Ideas found (gold → model) | 9 → 9 | 7 → 8 | 6 → 6 | – |
+| Idea grouping, B³ F1 | 0.90 | 0.85 | 0.94 | 0.89 |
+| Lineage edges (branch/merge), F1 | 0.75 | 0.91 | 1.00 | 0.89 |
+| Parked/dropped ideas caught | 0.67 | 1.00 | 1.00 | 0.89 |
+| Final idea status, accuracy | 0.62 | 1.00 | 1.00 | 0.88 |
+| Gold stances the model also found | 0.78 | 0.71 | 0.82 | 0.77 |
+| Stance, exact | 0.89 | 0.78 | 0.78 | 0.82 |
+| Stance side (for / against / neutral) | 0.91 | 0.86 | 0.83 | 0.87 |
+| Speaker attribution | 0.98 | 1.00 | 1.00 | 0.99 |
+| Decisions, F1 | 0.62 | 0.77 | 0.44 | 0.61 |
+| Action items, F1 | 0.94 | 0.98 | 0.82 | 0.91 |
+| Open questions, F1 | 0.86 | 0.80 | 0.89 | 0.85 |
+| Quotes copied verbatim | 1.00 | 0.99 | 1.00 | 1.00 |
+| Claims kept after the quote check | 1.00 | 0.97 | 1.00 | 0.99 |
+| Converge Room turns backed by a quote | 1.00 | 1.00 | 1.00 | 1.00 |
+| Cost per meeting (USD) | $0.0106 | $0.0109 | $0.0159 | – |
+| Model time per meeting (s) | 19.0 | 18.9 | 30.4 | – |
+
+One prompt revision, guided by the errors of the first run, moved the main numbers (mean of the
+three teams):
+
+| Metric | First prompt | Revised prompt |
+|---|---|---|
+| Idea grouping, B³ F1 | 0.83 | 0.89 |
+| Lineage edges, F1 | 0.77 | 0.89 |
+| Stance, exact | 0.66 | 0.82 |
+| Stance side | 0.81 | 0.87 |
+| Decisions, F1 | 0.58 | 0.61 |
+| Final idea status | 0.96 | 0.88 |
+
+The first run reported results as support instead of plain information, treated successors
+such as GRU as new ideas rather than branches of LSTM, and missed calls made by the PI as
+decisions; the revised prompt defines each of those. Final status got worse in one team because
+later discussion attached to "GRU" instead of "GRU + attention", which changes which of the two
+counts as dormant. The set is small and the revision was tuned on it, so read the numbers as a
+sanity check rather than a benchmark.
+
 ## Development
 
 | Task | Command |

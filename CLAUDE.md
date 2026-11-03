@@ -32,6 +32,7 @@ Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 line
 | demo 회의록을 Notion에 복사 | `cd backend && uv run python -m app.ingest push-notion <page_id> [--scenario <name>]` |
 | 편집을 Notion page에 기록하도록 연결 | `cd backend && uv run python -m app.ingest link-notion <workspace_id> <page_id>` (`""`로 해제) |
 | Muse Spark로 분석 + briefing (Update 버튼과 같음) | `cd backend && uv run python -m app.ingest analyze <workspace_id> [--fresh]` |
+| gold 대비 정량 평가 (README 표) | `cd backend && uv run python -m app.evaluate [--rooms] [--json]` |
 | Notion 옆 side panel | Chrome `chrome://extensions` → 개발자 모드 → "압축해제된 확장 프로그램 로드" → `extension/` |
 | Python lint·format | `cd backend && uv run ruff format . && uv run ruff check --fix .` |
 | TS lint·format | `cd frontend && npm run check` |

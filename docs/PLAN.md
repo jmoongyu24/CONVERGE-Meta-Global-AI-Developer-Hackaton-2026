@@ -13,7 +13,7 @@
 - **남은 시간**: 약 3.5일. Must 기능(F0~F6)과 제출(F8)에 집중하고, 11/4 20:00 KST에 feature freeze.
 - **진행 순서**: Meta API key(credit)가 오기 전에는 key 없이 되는 작업(F0a → F1 → F3 → F4 → F5)을 먼저 한다. F1의 gold label을 F2(LLM) 출력과 같은 schema로 만들어서, key 없이도 engine·API·UI를 실제와 같은 데이터로 개발한다. key가 오면 F2가 같은 schema를 만들도록 연결하고, gold와 비교한 결과가 곧 F7 eval이 된다.
 - **모델 학습**: 없음. 모든 AI 기능은 Meta Model API 호출로 구현.
-- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F9 · F10 완료. Meta API key 도착(11/2) → Muse Spark로 분석·briefing·Converge Room 동작 확인, Notion page 연결 → Update → Converge → Adopt 전체 흐름 실제 확인 (지금까지 API 비용 약 $0.85). 남은 것은 F7(eval) · F8(제출).
+- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F7 · F9 · F10 완료. Muse Spark로 분석·briefing·Converge Room 동작, Notion 연결 → Update → Converge → Adopt 전체 흐름 확인, gold 대비 정량 평가(README 표). 첫 화면과 History는 신규 사용자 평가(ChatGPT·Gemini)를 반영해 세 차례 다듬음. 남은 것은 F8(제출).
 - **UX 원칙 (사용자, 11/2)**: 기능 수보다 "한눈에 들어오는 화면"과 "설치·연결·Update만으로 끝나는 사용 경험"이 우선. 첫 화면은 ① 지금 상황 ② 나의 다음 할 일 ③ 공동 작업 그림(module을 참여자 색으로 세로 분할) ④ 경합 중인 것 ⑤ 사람별 아이디어·다음 단계만 보여주고, timeline·matrix는 History로 뺀다.
 
 ---
@@ -356,6 +356,17 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - Chrome side panel 확장(`extension/`): Notion 탭 옆에 Converge를 띄우고, 열린 page가 속한 팀의 Now 화면을 보여주거나 연결을 제안. 좁은 panel에서는 그림이 위→아래로 배치되고 Update 버튼이 아래에 고정
 - 설치: `./start.sh` 한 줄 (uv 설치, key 입력 → `.env`, build, demo 적재, 실행). `.env.example`은 삭제
 
+- **첫 화면 개편 (11/3, 신규 사용자 평가 반영)**: ChatGPT의 신규 사용자 평가(7/10: 앱의 목적과 결론이 작은 글씨에 묻히고 그래프가 시선을 가져감, 글이 많음)와 사용자 의견에 따라 "5초 안에 이해되는 화면"으로 다시 구성
+  - header tagline 한 줄 + 첫 실행 때만 3단계 안내(Connect → Update → See), "Got it"으로 닫으면 다시 안 뜸
+  - 긴 연구 질문 대신 팀 상태 한 문장(headline, 14단어 이내, 열린 문제를 결정된 것처럼 쓰지 않음)을 크게, 연구 문제는 작은 한 줄로
+  - 세 개의 답 카드: ✓ Agreed(실제로 확정된 내용만, 일정 계획은 제외) · ⚔ Still open(쟁점, 편, 결정 시점, "Settle with an AI debate", "On the map") · → Your next step(할 일 + Why + Done when + 어떤 쟁점을 푸는지)
+  - 작업 지도는 카드 아래로: box 안에 ✓(사용 중) · 점선(제안, 옅은 색) · ⚔ CONTESTED, legend도 같은 말
+  - 사람별 카드 → 한 줄 비교 목록(이름 · 미는 아이디어 · 다음 할 일), Update 바는 화면 아래 고정
+  - LLM briefing에 단어 수 제한과 새 field(headline, agreed, Step의 why·due·contest) 추가. 근거 quote 검증은 그대로 (팀당 briefing 재작성 약 $0.04)
+  - 2차 (ChatGPT 8.5/10, Gemini 8/10 평가 반영): 쟁점은 "Most urgent" + 결정되는 것(stakes) + 각 편이 원하는 것을 한 줄로, 나머지 쟁점은 숨기지 않고 한 줄씩 · 할 일 라벨을 Why / Due / Resolves로, 축약어 없는 자연스러운 문장과 날짜 표기 · 지도는 연결선을 옅게 두고 box에 올리거나 고르면 그 box와 연결된 것만 진하게, 사람을 고르면 그 사람의 일과 연결선만 강조 · box 안에 "Proposed"를 직접 써서 범례 없이도 읽힘 · 좁은 panel에서는 지도를 85% 아래로 줄이지 않고 가로 scroll · "Who is pushing what" → "Who's working on what"(열 제목 Person · Current idea · Next step) · module 카드에 상태와 관련 쟁점 표시
+  - 3차 (ChatGPT 9/10 평가 + 사용자 요청): 제목(headline)은 가장 급한 쟁점만 요약하고 함께 정해지는 것(예: 주저자)은 쟁점의 stakes 줄에서 보여줘서 제목과 쟁점 카드가 어긋나지 않게 · 지도 box 아래 진한 띠를 없애 사람 색을 하나로 통일하고, 제안 상태는 채도가 아니라 점선과 "Proposed" 글자로만 표시 · 강조에서 제외된 box는 회색+흐림으로 바꾸고 "누구의 일을 보여주는 중, 나머지는 흐려졌을 뿐 완료 아님" 안내 줄과 "Show everything" 버튼 · 범례를 Status / Competing / Colors(사람 이름) 묶음으로 · 안내 문구를 "클릭"으로 통일(터치 기기 고려) · 상태 줄에 quote 아이콘이 원문을 연다는 안내 · 날짜는 월을 풀어 쓰고 숫자는 숫자로
+- **History 패널 개선 (11/3, ChatGPT History 평가 9.3/10 반영)**: 위쪽 섹션 바로가기 · 관계 종류 구분(Branched from / Merged from / Branched into / Merged into / Replaced by) · 보류·폐기 이유를 quote와 함께("Dropped because …") · 사람별 입장 변화를 회의 단위로 날짜와 함께(각 단계 클릭 → 발언) · 근거는 최근 5개 + "Show all", "Open in note ↗" · 원문 viewer에서 줄 전체가 아니라 인용된 문장에 형광펜
+
 ### F6. Converge Room · 완료 (11/3)
 
 - 사용자 생각 반영 (11/2): Now 화면의 "경합 중인 것" 카드에서 바로 시작한다. 결과는 "그래서 각자 무엇을 하면 되나"로 끝나야 한다 → 수렴안 = 결정 + module별 담당(그림의 색 분할이 바뀜) + 사람별 다음 할 일. Adopt하면 session note로 기록되고 Notion에도 써진다
@@ -366,10 +377,12 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - **구현**: Now 화면의 경합 카드 → "Converge on this" → delegate(사람마다 1명, 그 사람의 기록만 입력) 2라운드 병렬 호출 → facilitator가 수렴안 2개(결정, 이유 + quote, 사람별 다음 할 일과 module, 예상 수용도, 위험). quote가 검증되지 않은 발언은 "unsupported"로 흐리게 표시하고, 근거 없는 이유는 버린다. Adopt → session note(결정 + 사람별 "Next for …" 줄) + Notion write-back → module 참여 내용과 할 일이 바뀌고 briefing을 다시 쓴다. `?converge=<id>`로 끝난 Room을 다시 연다
 - 결과: 시나리오 B(3명) 약 1분 $0.06, 시나리오 A(2명) $0.04. delegate 6개 중 4~5개가 quote로 뒷받침되고, 근거가 부족하면 "본인에게 물어봐야 한다"고 말한다. muse-wonder-1.0이 없어서 facilitator도 Spark(reasoning medium)
 
-### F7. Eval · 11/4(수) · 2h
+### F7. Eval · 완료 (11/3)
 
 - `evaluate.py`: idea clustering (B³ F1), 발언자 attribution 정확도, lineage edge F1, quote 검증률, delegate citation faithfulness, 회의당 비용·latency
 - **DoD**: README에 결과 표
+- **구현**: `evaluate.py` (`uv run python -m app.evaluate [--rooms] [--json]`). 모델은 아이디어 이름을 자기 말로 붙이므로, 같은 발언(회의·줄·발언자)을 가장 많이 공유하는 gold 아이디어와 짝지은 뒤 비교한다. 지표: 아이디어 묶음 B³ F1, 계보 edge F1, 보류·폐기 판정, 최종 상태, 입장(정확·편), 발언자, 결정·할 일·질문 F1, quote 원문 일치·검증 통과율, Converge Room 근거율, 회의당 비용·시간. gold를 gold와 비교하면 모두 1.0이 나오는 것을 test로 확인
+- **결과 (3개 팀 평균)**: 첫 측정에서 오류를 분석해 prompt를 한 번 고침 (결과 보고를 지지로, 후속 아이디어를 새 아이디어로, 교수의 지시를 결정이 아닌 것으로 본 오류) → B³ F1 0.83 → 0.89, 계보 F1 0.77 → 0.89, 입장 정확 0.66 → 0.82, 입장 편 0.81 → 0.87, 결정 F1 0.58 → 0.61, 최종 상태 0.96 → 0.88 (한 팀에서 후반 논의가 다른 아이디어에 붙어 휴면 판정이 달라짐). 발언자 0.99, quote 원문 일치 1.00, Converge Room 발언의 quote 근거 1.00, 회의당 약 /bin/bash.01·20초. 같은 데이터로 한 번 조정했으므로 benchmark가 아니라 sanity check로 본다
 
 ### F8. Ship · 11/4(수) 저녁 ~ 11/5(목) 09:00 · 5h
 
