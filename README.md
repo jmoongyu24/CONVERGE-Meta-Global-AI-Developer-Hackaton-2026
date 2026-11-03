@@ -1,9 +1,9 @@
+![CONVERGE: what did we agree on, who thinks what and why, who does what next. Meta Global AI Developer Hackathon 2026](docs/images/thumbnail.png)
+
 # CONVERGE
 
 **AI reads your team's meeting notes and shows what's agreed, what's still open, and who does
 what next. Every claim links to the line of the notes it came from.**
-
-![The Now board of a demo lab: the team status, what is agreed, the most urgent open question with each side, the reader's next step, and the work map colored by who builds each part](docs/images/now.png)
 
 Research teams make their decisions in meetings and keep the record in Notion. A few months
 later, nobody can say what was decided, who backed which idea, or why something was dropped.
@@ -27,6 +27,8 @@ diagram. Each part is split into the colors of the people working on it, dashed 
 proposals, and **⚔ COMPETING** marks a part where people propose different approaches. Click
 a box or a person to highlight related work, or a quote mark to open the meeting note at that
 line.
+
+![The Now board of a demo lab: the team status, what is agreed, the most urgent open question with each side, the reader's next step, and the work map colored by who builds each part](docs/images/now.png)
 
 ### Beside Notion
 
