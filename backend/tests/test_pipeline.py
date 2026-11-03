@@ -39,6 +39,7 @@ from app.models import (
     StanceShift,
     Step,
     Synthesis,
+    Workspace,
 )
 from app.pipeline import build_state, check_board, repair_quote
 
@@ -689,3 +690,21 @@ def test_merge_roster_adds_only_new_people() -> None:
     merged = pipeline.merge_roster(known, found)
     assert [m.id for m in merged] == ["daniel", "sora", "daniel-2", "lena"]
     assert merged[2].name == "Daniel Park"
+
+
+def test_notion_page_lookup_finds_session_and_sub_pages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "lookup.db")
+    linked = "a" * 32
+    with store.connect() as conn:
+        store.save_workspace(
+            conn, Workspace(id="team", name="Team", members=[], notion_page_id=linked)
+        )
+    monkeypatch.setattr(
+        "app.ingest.notion_ancestors", lambda page: [linked] if page == "b" * 32 else ["c" * 32]
+    )
+    client = TestClient(app)
+    assert client.get(f"/api/notion/{linked}").json() == {"workspace": "team"}
+    assert client.get(f"/api/notion/{'b' * 32}").json() == {"workspace": "team"}
+    assert client.get(f"/api/notion/{'d' * 32}").json() == {"workspace": None}

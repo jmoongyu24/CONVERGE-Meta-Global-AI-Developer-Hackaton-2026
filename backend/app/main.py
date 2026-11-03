@@ -168,16 +168,27 @@ def connect_notion(request: ConnectRequest) -> Workspace:
 
 @app.get("/api/notion/{page_id}")
 def find_notion_page(page_id: str) -> dict[str, str | None]:
-    """Which workspace a Notion page belongs to: the linked page itself or one of its notes.
-    The browser extension asks this for the page open beside it."""
+    """Which workspace a Notion page belongs to: the linked page, one of its notes, the
+    session page Converge writes, or any page below the linked one. The browser extension
+    asks this for the page open beside it, so the panel keeps the team on every sub-page."""
     wanted = page_id.replace("-", "")
     with store.connect() as conn:
-        for workspace in store.list_workspaces(conn):
-            if (workspace.notion_page_id or "").replace("-", "") == wanted:
-                return {"workspace": workspace.id}
-            ids = {s.id.replace("-", "") for s in store.list_sources(conn, workspace.id)}
-            if wanted in ids:
-                return {"workspace": workspace.id}
+        workspaces = store.list_workspaces(conn)
+        linked = {(w.notion_page_id or "").replace("-", ""): w.id for w in workspaces}
+        if wanted in linked:
+            return {"workspace": linked[wanted]}
+        for workspace in workspaces:
+            for source in store.list_sources(conn, workspace.id):
+                if wanted in (source.id.replace("-", ""), (source.url or "").replace("-", "")):
+                    return {"workspace": workspace.id}
+    linked.pop("", None)
+    if linked:
+        try:
+            for ancestor in ingest.notion_ancestors(wanted):
+                if ancestor in linked:
+                    return {"workspace": linked[ancestor]}
+        except NOTION_ERRORS:
+            pass  # a page the integration cannot see belongs to no team here
     return {"workspace": None}
 
 

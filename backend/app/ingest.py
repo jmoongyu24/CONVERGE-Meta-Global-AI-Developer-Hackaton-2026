@@ -519,6 +519,26 @@ def push_to_notion(
     return folder["id"]
 
 
+def notion_ancestors(page_id: str, limit: int = 6) -> list[str]:
+    """Ids of the pages and databases above `page_id`, nearest first, without dashes."""
+    client = notion()
+    found: list[str] = []
+    kind, current = "page", page_id
+    for _ in range(limit):
+        if kind == "page":
+            parent = client.pages.retrieve(page_id=current)["parent"]
+        elif kind == "database":
+            parent = client.databases.retrieve(database_id=current)["parent"]
+        else:  # data sources sit under their database
+            parent = client.data_sources.retrieve(data_source_id=current)["parent"]
+        kind = parent["type"].removesuffix("_id")
+        if kind not in ("page", "database", "data_source"):
+            break  # the workspace root or a block parent
+        current = parent[parent["type"]].replace("-", "")
+        found.append(current)
+    return found
+
+
 def notion_page_id(url: str) -> str:
     return re.findall(r"[0-9a-f]{32}", url)[-1]
 
