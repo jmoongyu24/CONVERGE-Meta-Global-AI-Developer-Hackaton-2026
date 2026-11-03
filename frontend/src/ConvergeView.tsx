@@ -1,4 +1,4 @@
-// The Converge Room: one open question, a delegate per member arguing only from that member's
+// The CONVERGE Room: one open question, a delegate per member arguing only from that member's
 // own words (every quote checked), and a facilitator's proposals that end in who does what
 // next. Adopting one writes it to the session note and Notion, and the board follows.
 
@@ -109,7 +109,7 @@ export function ConvergeRoom({
       <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-hairline bg-surface px-5 py-4">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-            Converge Room
+            CONVERGE Room
           </p>
           <h2 className="mt-1 text-base font-semibold leading-snug">{contest.question}</h2>
           {contest.stakes && <p className="mt-0.5 text-sm text-ink-2">{contest.stakes}</p>}

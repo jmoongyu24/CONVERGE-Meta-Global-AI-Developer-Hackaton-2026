@@ -32,7 +32,7 @@ interface Props {
   onOpenQuote: (sourceId: string, line: number, quote?: string) => void;
   onDetails: (moduleId: string | null) => void;
   onAdopted: (message: string) => void;
-  openRoom?: string | null; // a Converge Room session to reopen, from a shared link
+  openRoom?: string | null; // a CONVERGE Room session to reopen, from a shared link
   compact: boolean; // the narrow side panel next to Notion
 }
 
@@ -279,7 +279,7 @@ export function BoardView(props: Props) {
   );
 }
 
-/** First visit only: what Converge is, in three steps. */
+/** First visit only: what CONVERGE is, in three steps. */
 function Intro({ onClose }: { onClose: () => void }) {
   const steps = [
     "Connect your Notion meeting notes",
@@ -288,7 +288,7 @@ function Intro({ onClose }: { onClose: () => void }) {
   ];
   return (
     <aside className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-hairline bg-surface px-4 py-3 text-sm">
-      <span className="font-semibold">How Converge works</span>
+      <span className="font-semibold">How CONVERGE works</span>
       <ol className="flex flex-wrap gap-x-5 gap-y-1 text-ink-2">
         {steps.map((step, index) => (
           <li key={step} className="flex items-center gap-1.5">

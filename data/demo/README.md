@@ -8,7 +8,7 @@ Three fictional research teams. Every person, meeting, and result is invented; r
 | `long-term-dependency` | Prof. Ruiz, Daniel (PhD), Sora (PhD), Amir (MS) | 10 | 2014-03 → 2017-07 | gated recurrence, RNN → LSTM → GRU (Daniel) vs. attention → Transformer (Sora); Amir switches sides as results come in |
 | `sim-to-real` | Prof. Okafor, Hana (PhD), Marco (PhD), Yuki (MS) | 7 | 2026-03 → 2026-05 | domain randomization (Hana) vs. system identification (Marco, backed by Yuki) |
 
-In every scenario two PhD students compete to lead the main paper, the MS student backs one of them with experiments, and the PI pushes for a single direction. Each scenario mixes points the whole team agrees on with open disagreements, and ends without a decision, so the Converge Room has a real conflict to resolve.
+In every scenario two PhD students compete to lead the main paper, the MS student backs one of them with experiments, and the PI pushes for a single direction. Each scenario mixes points the whole team agrees on with open disagreements, and ends without a decision, so the CONVERGE Room has a real conflict to resolve.
 
 ## Files per scenario
 

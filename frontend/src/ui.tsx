@@ -38,7 +38,7 @@ export function memberColors(workspace: Workspace): Record<string, string> {
   return colors;
 }
 
-// Inside the extension's side panel Converge is a third-party frame, where browsers may refuse
+// Inside the extension's side panel CONVERGE is a third-party frame, where browsers may refuse
 // storage; remembering who "I am" is a convenience, so a refusal just forgets it.
 export function remembered(key: string): string | null {
   try {

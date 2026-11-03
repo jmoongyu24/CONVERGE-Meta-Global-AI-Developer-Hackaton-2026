@@ -1,4 +1,4 @@
-// Shows Converge beside the open tab. When the tab is a Notion page, Converge opens that
+// Shows CONVERGE beside the open tab. When the tab is a Notion page, CONVERGE opens that
 // team's board, or offers to connect the page if it is new.
 const CONVERGE = "http://localhost:8000";
 const frame = document.getElementById("converge");

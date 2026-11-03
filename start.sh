@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# From a fresh clone to Converge at http://localhost:8000 in one command: installs what is
+# From a fresh clone to CONVERGE at http://localhost:8000 in one command: installs what is
 # missing, asks for your keys once (they stay in .env on this machine), builds the web app,
 # loads the demo teams on first run, and starts the server.
 set -euo pipefail
@@ -13,12 +13,12 @@ if ! have uv; then
   export PATH="$HOME/.local/bin:$PATH"
 fi
 if ! have npm; then
-  echo "Converge needs Node.js 20 or newer to build its web app: https://nodejs.org" >&2
+  echo "CONVERGE needs Node.js 20 or newer to build its web app: https://nodejs.org" >&2
   exit 1
 fi
 
 if [ ! -f .env ]; then
-  echo "First run: Converge needs your keys. They are saved only to .env in this folder."
+  echo "First run: CONVERGE needs your keys. They are saved only to .env in this folder."
   read -rp "Meta Model API key (https://dev.meta.ai/api-keys): " model_key
   read -rp "Notion integration token (https://www.notion.so/my-integrations), or Enter to skip: " notion_token
   umask 077
@@ -34,9 +34,9 @@ fi
 
 cat <<MSG
 
-Converge is running at http://localhost:8000  (Ctrl+C stops it)
+CONVERGE is running at http://localhost:8000  (Ctrl+C stops it)
 Beside Notion: open chrome://extensions, turn on Developer mode, click "Load unpacked",
-and pick $(pwd)/extension. Then click the Converge icon on any Notion page.
+and pick $(pwd)/extension. Then click the CONVERGE icon on any Notion page.
 
 MSG
 cd backend && exec uv run uvicorn app.main:app --port 8000

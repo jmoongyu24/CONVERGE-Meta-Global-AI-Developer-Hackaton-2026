@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS boards (
     board        TEXT NOT NULL,
     PRIMARY KEY (workspace_id, origin)
 );
--- Converge Room sessions (ConvergeSession JSON), kept after the room closes.
+-- CONVERGE Room sessions (ConvergeSession JSON), kept after the room closes.
 CREATE TABLE IF NOT EXISTS converge_sessions (
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     id           TEXT NOT NULL,

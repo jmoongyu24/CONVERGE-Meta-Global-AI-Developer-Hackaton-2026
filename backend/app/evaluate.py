@@ -6,7 +6,7 @@ note. Everything else is compared through that matching.
 
 Usage, from backend/:
     uv run python -m app.evaluate            # every demo workspace, as a Markdown table
-    uv run python -m app.evaluate --rooms    # also run one Converge Room per workspace
+    uv run python -m app.evaluate --rooms    # also run one CONVERGE Room per workspace
 """
 
 import argparse
@@ -180,7 +180,7 @@ def entries(analysis: SourceAnalysis) -> list:
 
 
 def room_scores(workspace_id: str, model: LineageState, sources: list[Source], run: bool) -> dict:
-    """Share of Converge Room delegate turns backed by a quote that checks out."""
+    """Share of CONVERGE Room delegate turns backed by a quote that checks out."""
     with store.connect() as conn:
         rows = conn.execute(
             "SELECT session FROM converge_sessions WHERE workspace_id = ?", (workspace_id,)
@@ -251,7 +251,7 @@ ROWS = [
     ("Open questions, F1", lambda r: r["items"]["question"]["f1"]),
     ("Quotes copied verbatim", lambda r: r["verbatim"]),
     ("Claims kept after the quote check", lambda r: r["kept"]),
-    ("Converge Room turns backed by a quote", lambda r: r["supported"]),
+    ("CONVERGE Room turns backed by a quote", lambda r: r["supported"]),
     ("Cost per meeting (USD)", lambda r: f"${r['cost_per_note']:.4f}"),
     ("Model time per meeting (s)", lambda r: f"{r['seconds_per_note']:.1f}"),
 ]
@@ -277,7 +277,7 @@ def table(results: list[dict]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compare model analyses with the gold labels.")
-    parser.add_argument("--rooms", action="store_true", help="run one Converge Room each")
+    parser.add_argument("--rooms", action="store_true", help="run one CONVERGE Room each")
     parser.add_argument("--json", action="store_true", help="print raw numbers as JSON")
     args = parser.parse_args()
     workspaces = [folder.name for folder in ingest.demo_folders()]

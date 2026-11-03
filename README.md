@@ -1,4 +1,4 @@
-# Converge
+# CONVERGE
 
 **AI reads your team's meeting notes and shows what's agreed, what's still open, and who does
 what next. Every claim links to the line of the notes it came from.**
@@ -7,7 +7,7 @@ what next. Every claim links to the line of the notes it came from.**
 
 Research teams make their decisions in meetings and keep the record in Notion. A few months
 later, nobody can say what was decided, who backed which idea, or why something was dropped.
-Converge connects to that Notion page and has Muse Spark read every meeting, including tables,
+CONVERGE connects to that Notion page and has Muse Spark read every meeting, including tables,
 toggles, and whiteboard photos. It turns the record into one screen: where the team stands,
 how its ideas grew, and what each person does next. When a question is stuck, AI delegates
 that may only use what their person actually said debate it, and the decision goes back into
@@ -42,13 +42,13 @@ The panel keeps the whole board: the status, what is agreed, the open question w
 and its **Settle with an AI debate** button, your next step, and the work map.
 
 </td>
-<td width="300"><img src="docs/images/panel.png" alt="Converge in the side panel for a demo robotics lab: status, agreed points, the open question with three sides, the next step, and the work map" width="300"></td>
+<td width="300"><img src="docs/images/panel.png" alt="CONVERGE in the side panel for a demo robotics lab: status, agreed points, the open question with three sides, the next step, and the work map" width="300"></td>
 </tr>
 </table>
 
-### Converge Room: settle it with an AI debate
+### CONVERGE Room: settle it with an AI debate
 
-![A Converge Room on whether the lab's main line should be attention-only or keep recurrent memory: each member's delegate states a position backed by quotes from the notes](docs/images/room.png)
+![A CONVERGE Room on whether the lab's main line should be attention-only or keep recurrent memory: each member's delegate states a position backed by quotes from the notes](docs/images/room.png)
 
 Every open question has a **Settle with an AI debate** button. Each member involved gets a
 delegate that speaks only from what that member said in the notes. Its quotes are checked, and
@@ -98,7 +98,7 @@ flowchart LR
 5. **Brief.** A second call writes the board from the replayed state and the latest notes, and
    its claims go through the same check.
 
-## How Converge uses Muse Spark
+## How CONVERGE uses Muse Spark
 
 Every model call runs on Muse Spark (`muse-spark-1.3`) through the Meta Model API.
 
@@ -118,7 +118,7 @@ Every model call runs on Muse Spark (`muse-spark-1.3`) through the Meta Model AP
 - **Standard tier only.** Meeting notes are never sent to a `-contributor` model, which would
   train on them; the client refuses one.
 - **Cost.** Reading costs about $0.01 per meeting, so a ten-meeting team costs about $0.11 to
-  update. A Converge Room costs about $0.06.
+  update. A CONVERGE Room costs about $0.06.
 
 ## Evaluation
 
@@ -144,7 +144,7 @@ first matched to the labelled ones through the statements (meeting, line, speake
 | Open questions, F1 | 0.86 | 0.80 | 0.89 | 0.85 |
 | Quotes copied verbatim | 1.00 | 0.99 | 1.00 | 1.00 |
 | Claims kept after the quote check | 1.00 | 0.97 | 1.00 | 0.99 |
-| Converge Room turns backed by a quote | 1.00 | 1.00 | 1.00 | 1.00 |
+| CONVERGE Room turns backed by a quote | 1.00 | 1.00 | 1.00 | 1.00 |
 | Cost per meeting (USD) | $0.0106 | $0.0109 | $0.0159 | – |
 | Model time per meeting (s) | 19.0 | 18.9 | 30.4 | – |
 
@@ -178,7 +178,7 @@ cd converge && ./start.sh
 already be installed), asks once for your [Meta Model API key](https://dev.meta.ai/api-keys)
 and, optionally, a [Notion integration token](https://www.notion.so/my-integrations), and saves
 them only to `.env` in this folder. It then builds the web app, loads three demo teams, and
-serves Converge at http://localhost:8000.
+serves CONVERGE at http://localhost:8000.
 
 The demo teams' History works right away from their hand-labelled analyses. Press **Update** to
 have Muse Spark read a team and write its board: about $0.11 and a few minutes for ten meetings.
@@ -191,11 +191,11 @@ have Muse Spark read a team and write its board: about $0.11 and a few minutes f
    and add the integration under **••• → Connections**.
 3. In Chrome, open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and
    pick the `extension/` folder.
-4. On the Notion page, click the Converge icon and press **Connect and update**. Without the
+4. On the Notion page, click the CONVERGE icon and press **Connect and update**. Without the
    extension, use **Team → + Connect a Notion page…** in the web app.
 
-Converge writes to Notion only when you adopt a proposal or make an edit in the Architecture
-view. It adds lines to a "Converge session" page under the connected page and never changes
+CONVERGE writes to Notion only when you adopt a proposal or make an edit in the Architecture
+view. It adds lines to a "CONVERGE session" page under the connected page and never changes
 your notes.
 
 ## Development
@@ -216,7 +216,7 @@ backend/app/
   main.py        FastAPI routes and background updates
   ingest.py      Notion and Markdown import, write-back to Notion, CLI
   pipeline.py    reading the notes, quote checks, replay, the board (prompts at the top)
-  converge.py    Converge Room: delegates and facilitator
+  converge.py    CONVERGE Room: delegates and facilitator
   llm.py         Meta Model API client: schema, retries, cache, cost log
   evaluate.py    scores against the gold labels
   models.py      Pydantic models for every model output and API payload

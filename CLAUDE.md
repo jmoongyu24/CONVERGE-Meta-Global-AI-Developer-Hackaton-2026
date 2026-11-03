@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Converge (가칭): 연구실 회의록(Notion)에서 연구 아이디어의 lineage·담당자·stance를 추출해 시각화하고, multi-agent 토론으로 연구 방향 수렴을 돕는 서비스. Meta Global AI Developer Hackathon 2026 출품작.
+CONVERGE: 연구실 회의록(Notion)에서 연구 아이디어의 lineage·담당자·stance를 추출해 시각화하고, multi-agent 토론으로 연구 방향 수렴을 돕는 서비스. Meta Global AI Developer Hackathon 2026 출품작.
 
 - 상세 계획·일정: [docs/PLAN.md](docs/PLAN.md)
 - 마감: 11/5(목) 11:00 KST (내부 목표 09:00)

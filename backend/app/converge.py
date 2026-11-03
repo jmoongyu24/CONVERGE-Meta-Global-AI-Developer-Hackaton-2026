@@ -1,4 +1,4 @@
-"""Converge Room: settle an open question the way a good meeting would, from the record.
+"""CONVERGE Room: settle an open question the way a good meeting would, from the record.
 
 Each member involved gets a delegate that speaks only from what that member said in the
 notes and must quote it. Delegates state their position, then answer each other. A
@@ -236,7 +236,7 @@ def adoption(
         raise ValueError("no such proposal")
     proposal = session.proposals[index]
     decided = (
-        f"{clock} {names[member]} adopted in the Converge Room: "
+        f"{clock} {names[member]} adopted in the CONVERGE Room: "
         f"{proposal.title}. {proposal.decision}"
     )
     lines = [decided]

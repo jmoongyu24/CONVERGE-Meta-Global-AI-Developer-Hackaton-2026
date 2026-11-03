@@ -602,7 +602,7 @@ def test_update_job_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert client.get(f"{base}/state").json()["issues"] == []  # replays the model's analyses
 
 
-# --- Converge Room ------------------------------------------------------------------
+# --- CONVERGE Room ------------------------------------------------------------------
 
 
 def test_converge_room_runs_and_adoption_lands_on_the_board(
@@ -662,7 +662,7 @@ def test_converge_room_runs_and_adoption_lands_on_the_board(
         f"{base}/converge/{room['id']}/adopt", json={"proposal": 0, "member": "okafor"}
     )
     assert adopted.status_code == 200, adopted.text
-    assert "Prof. Okafor adopted in the Converge Room: Calibrate first." in adopted.json()["line"]
+    assert "Prof. Okafor adopted in the CONVERGE Room: Calibrate first." in adopted.json()["line"]
     for _ in range(100):
         if client.get(f"{base}/update").json()["state"] != "running":
             break

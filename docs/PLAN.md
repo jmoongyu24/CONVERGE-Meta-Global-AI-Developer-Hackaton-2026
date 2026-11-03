@@ -1,4 +1,4 @@
-# Converge (가칭) — 개발 계획서
+# CONVERGE (가칭) — 개발 계획서
 
 > Meta Global AI Developer Hackathon 2026 출품 계획 · **Indie track · 1인 개발** · 작성 2026-11-01
 > **제출 마감: 11/4(수) 21:00 ET = 11/5(목) 11:00 KST** · 내부 목표: **11/5 09:00 KST 제출 완료**
@@ -13,7 +13,7 @@
 - **남은 시간**: 약 3.5일. Must 기능(F0~F6)과 제출(F8)에 집중하고, 11/4 20:00 KST에 feature freeze.
 - **진행 순서**: Meta API key(credit)가 오기 전에는 key 없이 되는 작업(F0a → F1 → F3 → F4 → F5)을 먼저 한다. F1의 gold label을 F2(LLM) 출력과 같은 schema로 만들어서, key 없이도 engine·API·UI를 실제와 같은 데이터로 개발한다. key가 오면 F2가 같은 schema를 만들도록 연결하고, gold와 비교한 결과가 곧 F7 eval이 된다.
 - **모델 학습**: 없음. 모든 AI 기능은 Meta Model API 호출로 구현.
-- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F7 · F9 · F10 완료. Muse Spark로 분석·briefing·Converge Room 동작, Notion 연결 → Update → Converge → Adopt 전체 흐름 확인, gold 대비 정량 평가(README 표). 첫 화면과 History는 신규 사용자 평가(ChatGPT·Gemini)를 반영해 세 차례 다듬음. F8은 README 개편(화면 4장)과 영상 대본·제출 문구 초안까지 진행. 남은 것은 영상 녹화와 제출.
+- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F7 · F9 · F10 완료. Muse Spark로 분석·briefing·CONVERGE Room 동작, Notion 연결 → Update → CONVERGE → Adopt 전체 흐름 확인, gold 대비 정량 평가(README 표). 첫 화면과 History는 신규 사용자 평가(ChatGPT·Gemini)를 반영해 세 차례 다듬음. F8은 README 개편(화면 4장)과 영상 대본·제출 문구 초안까지 진행. 남은 것은 영상 녹화와 제출.
 - **UX 원칙 (사용자, 11/2)**: 기능 수보다 "한눈에 들어오는 화면"과 "설치·연결·Update만으로 끝나는 사용 경험"이 우선. 첫 화면은 ① 지금 상황 ② 나의 다음 할 일 ③ 공동 작업 그림(module을 참여자 색으로 세로 분할) ④ 경합 중인 것 ⑤ 사람별 아이디어·다음 단계만 보여주고, timeline·matrix는 History로 뺀다.
 
 ---
@@ -39,7 +39,7 @@
 | Impact | 30% | 누가 혜택을 받나, 얼마나 중요한가, 실제로 쓰일 수 있나, theme 적합성 | 본인 연구실의 실제 pain을 숫자로 제시 (회의 N회, 페이지 M개, 아이디어 K개). 팀원·교수님 사용 후기 한 줄. 연구실·R&D팀 전반으로 확장 가능성 |
 | Use of Meta AI Tooling | 25% | 창의적 사용, basic integration을 넘어섰나, 예상 밖 capability를 보여줬나 | "요약 챗봇"이 아니라 ① structured output으로 idea knowledge graph + **아키텍처 graph** 구축 + quote 검증 ② **Spark의 image 입력으로 Notion 속 화이트보드·figure를 읽어 아키텍처에 반영** ③ member별 delegate agent의 multi-agent 토론 ④ Spark(대량 처리)·Wonder(최종 추론) model routing ⑤ 1M context로 연구실 전체 history 추론. Stretch: SAM 3.1 화이트보드 grounding, Muse Image, Voice Transcribe, open weights privacy mode |
 | Technical Depth & Execution | 20% | engineering이 탄탄하고 다듬어졌나 | provenance 검증("No quote, no claim"), incremental pipeline, LLM cache·retry·비용 로깅, **gold label 기반 정량 eval** |
-| Demo | 25% | 동작하는 인상적인 demo, live에서 버티나, 영상 품질 | time slider로 아이디어가 생기고 갈라지고 합쳐지는 animation → Converge Room에서 agent 토론 live streaming → 채택하면 lineage에 merge 노드 생성. 2~3분 영상 |
+| Demo | 25% | 동작하는 인상적인 demo, live에서 버티나, 영상 품질 | time slider로 아이디어가 생기고 갈라지고 합쳐지는 animation → CONVERGE Room에서 agent 토론 live streaming → 채택하면 lineage에 merge 노드 생성. 2~3분 영상 |
 
 > Indie track 안내 문구의 "creativity, technical ambition, and whether it works"도 같은 방향이다. 특히 **"it works"**: live demo가 API 장애에도 죽지 않게 cache·fallback을 준비한다.
 
@@ -75,7 +75,7 @@
 
 ### 2.4 기존 서비스와의 차이
 
-| | Notion AI | NotebookLM | 회의록 AI (Otter, Fireflies 등) | Miro·FigJam AI | **Converge** |
+| | Notion AI | NotebookLM | 회의록 AI (Otter, Fireflies 등) | Miro·FigJam AI | **CONVERGE** |
 |---|---|---|---|---|---|
 | 정리 단위 | 페이지·문서 | 업로드한 source | 회의 1건 | 보드(수동) | **아이디어 entity** |
 | 회의 간 아이디어 변화 | 물어보면 답변 | 물어보면 답변 | ✗ | ✗ | **lineage 자동 구축 + time slider** |
@@ -91,7 +91,7 @@
 1. **Idea Lineage**: 아이디어의 탄생·분기·병합을 git graph처럼 시간축에 시각화
 2. **Who's on what**: 누가 어떤 아이디어를 담당·지지·우려하는지 한 화면에
 3. **Architecture Canvas**: 회의에서 논의한 모델·시스템 구조를 자동으로 그리고(표·토글·이미지 포함), 회의마다 무엇이 추가·채택·제거됐는지 diff로 보여준다. module 색 = 만드는 사람. 팀원이 그 자리에서 담당·연결·질문을 편집하면 회의록 한 줄로 기록되고 Notion에도 써진다
-4. **Converge Room**: 각 member의 발언만 근거로 말하는 delegate agent들이 토론해서 수렴안(통합 research question + member별 역할 분담 + 첫 실험)을 제안. "MAS 연구팀이 MAS로 수렴한다"는 story
+4. **CONVERGE Room**: 각 member의 발언만 근거로 말하는 delegate agent들이 토론해서 수렴안(통합 research question + member별 역할 분담 + 첫 실험)을 제안. "MAS 연구팀이 MAS로 수렴한다"는 story
 5. **Verified provenance**: 모든 노드·module·주장이 검증된 원문 quote로 연결
 6. **Zero friction**: 새 노트 습관 없이 기존 Notion 위에서 동작
 
@@ -107,7 +107,7 @@
 | F3 | Lineage & Insights + API | Must | idea graph·version 이력, 시점별 snapshot, dormant 감지, stance matrix, 변화 digest, REST/SSE API | (규칙 기반) |
 | F4 | Lineage View + Idea Canvas | Must | git-graph 스타일 timeline, time slider 재생, 아이디어 상세(canvas·이력·근거) | — |
 | F5 | Team View | Must | member별 현재 아이디어, stance matrix, 지난 회의 이후 변화 | — |
-| F6 | Converge Room | Must | delegate 토론 live streaming, 수렴안 비교·채택 → lineage에 merge 반영, 다음 회의 agenda | muse-spark-1.3, muse-wonder-1.0 |
+| F6 | CONVERGE Room | Must | delegate 토론 live streaming, 수렴안 비교·채택 → lineage에 merge 반영, 다음 회의 agenda | muse-spark-1.3, muse-wonder-1.0 |
 | F7 | Eval | Should | gold 대비 정량 평가, README에 결과 표 | — |
 | F8 | Ship | Must | 배포(demo mode), README, demo 영상, 제출 | — |
 | F9 | Architecture Canvas | Must (11/1 추가) | 회의록(표·토글·이미지·하위 page 포함)에서 아키텍처 graph 추출, 시점별 diff, 담당자 색, 함께 편집 + Notion write-back | muse-spark-1.3 (vision) |
@@ -142,7 +142,7 @@ flowchart LR
   DB --> API[main.py<br/>FastAPI REST + SSE]
   API --> CONV[converge.py<br/>delegates + facilitator]
   CONV <--> LLM
-  API <--> WEB[React UI<br/>Lineage · Team · Converge]
+  API <--> WEB[React UI<br/>Lineage · Team · CONVERGE]
 ```
 
 배포할 때는 FastAPI가 React build 결과도 함께 serve한다 → 서버 1개.
@@ -162,7 +162,7 @@ flowchart LR
 
 > **시간순 순차 처리 이유**: 이전 회의까지의 registry를 context로 넘겨야 같은 아이디어를 회의마다 일관되게 연결할 수 있다. 한 번 처리한 회의는 cache되므로 새 회의만 추가로 처리한다 (incremental).
 
-### 4.3 Converge Room (multi-agent)
+### 4.3 CONVERGE Room (multi-agent)
 
 ```
 [사용자] 수렴 대상 아이디어·member 선택
@@ -262,7 +262,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
         ├── LineageView.tsx    # lineage graph + time slider + 상세 panel
         ├── TeamView.tsx       # member board + stance matrix
         ├── ArchitectureView.tsx # 아키텍처 diagram + module panel·편집 form
-        ├── ConvergeView.tsx   # Converge Room
+        ├── ConvergeView.tsx   # CONVERGE Room
         └── ui.tsx             # 공용 작은 component (Badge, QuoteChip, IdeaCanvas …)
 ```
 
@@ -288,7 +288,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 
 - Notion: 지정한 parent page 아래 child page들 → block을 markdown으로 변환. 날짜는 제목·date property, 없으면 created_time. block 작성자(created_by)는 member 매핑 hint로 사용
 - Markdown import: 파일 업로드 / 붙여넣기 (Notion export, Obsidian, Google Docs export도 수용)
-- Demo dataset (synthetic): 하나의 큰 연구 주제 아래 3~5명이 여러 방향의 아이디어로 경합하는 회의 기록. 기록마다 시점(날짜·시간)과 member별 의견이 담기고, 공통 의견(align)과 대립 의견이 모두 존재한다. branch·merge·park·drop을 의도적으로 심어두고, 마지막 회의는 결론 없이 끝나서 Converge Room이 수렴을 이어받는다
+- Demo dataset (synthetic): 하나의 큰 연구 주제 아래 3~5명이 여러 방향의 아이디어로 경합하는 회의 기록. 기록마다 시점(날짜·시간)과 member별 의견이 담기고, 공통 의견(align)과 대립 의견이 모두 존재한다. branch·merge·park·drop을 의도적으로 심어두고, 마지막 회의는 결론 없이 끝나서 CONVERGE Room이 수렴을 이어받는다
   - 시나리오 3개 (모두 PhD 2명이 주도권 경합, MS 1명이 한쪽을 지원): self-organizing agents (11회, 2026), long-term dependency RNN → LSTM → GRU → Transformer (10회, 2014~2017), sim-to-real (7회, 2026). 상세는 [data/demo/README.md](../data/demo/README.md)
 - 정답(gold.json)은 F2 출력과 **같은 schema**로 만든다 → key 없이 F3~F5를 개발하고, key가 오면 그대로 F7 eval에 쓴다
 - (선택) demo 회의록을 Notion 테스트 workspace에 올리는 script. 영상의 "Notion 연결" 장면용
@@ -343,7 +343,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - replay: idea와 같은 방식으로 module 상태를 시점별로 재구성. 잘못된 참조(없는 module·담당자·아이디어, 자기 자신을 포함하는 block)는 버리거나 고치고 issue로 남긴다. block을 지우면 안의 layer도 함께 지워진다. module마다 변경 이력(누가 언제 무엇을 바꿨나 + quote)이 남는다
 - 화면 (`ArchitectureView.tsx`): ELK layered layout으로 자동 배치 (block 안 layer 중첩, 직각 화살표). 색 = 만드는 사람(팀원 색), 실선 = 채택, 점선 = 제안. 이전 회의 대비 NEW · ADOPTED · NEW OWNER · CHANGED 배지, 제거된 module은 그 회의에서 흐린 흔적으로 표시. "Who builds what" 목록, time slider·Play로 구조가 바뀌는 과정 재생. ELK는 필요할 때만 불러와서 첫 화면 bundle은 그대로
 - module panel: 담당자·상태·연결(Fed by · Feeds · Inside · Contains), 구현하는 아이디어와 팀원 입장, 질문·할 일, 변경 이력(quote 클릭 → 원문)
-- 함께 편집: 최신 시점에서 담당 지정·채택·제거, 질문·할 일·지지·반대, 새 module 제안. 편집은 그날의 session note에 한 줄(작성자 이름 + 내용)로 기록되는 source가 되어 timeline·digest·Team view에 그대로 반영되고, "No quote, no claim"도 유지된다. 다른 브라우저는 5초 polling으로 변경을 받는다. workspace가 Notion page와 연결돼 있으면(`ingest notion`, `ingest link-notion`) 같은 줄을 Notion의 "Converge session" page에 써 넣는다
+- 함께 편집: 최신 시점에서 담당 지정·채택·제거, 질문·할 일·지지·반대, 새 module 제안. 편집은 그날의 session note에 한 줄(작성자 이름 + 내용)로 기록되는 source가 되어 timeline·digest·Team view에 그대로 반영되고, "No quote, no claim"도 유지된다. 다른 브라우저는 5초 polling으로 변경을 받는다. workspace가 Notion page와 연결돼 있으면(`ingest notion`, `ingest link-notion`) 같은 줄을 Notion의 "CONVERGE session" page에 써 넣는다
 - 원문 viewer: 표·이미지·토글·하위 page를 Notion처럼 그린다. deep link `?quote=<source>:<line>`로 근거 줄을 바로 연다
 - demo 데이터: 3개 시나리오에 module 변경 82개(gold), 표·토글 5곳, 화이트보드·figure 이미지 4장, 하위 page 1개 추가. 시나리오 B는 RNN encoder → LSTM → GRU + soft attention → Transformer block(multi-head self-attention·feed-forward)과 recurrent memory의 경합까지 그려진다
 - **DoD**: pytest 23개 통과 (module replay·time travel·block 삭제·잘못된 module 차단·rich block 변환·이미지 API·편집 API), 3개 시나리오와 편집 session을 headless Chrome으로 캡처해서 확인, Notion 왕복(시나리오 B)·write-back 실제 확인
@@ -367,22 +367,22 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
   - 3차 (ChatGPT 9/10 평가 + 사용자 요청): 제목(headline)은 가장 급한 쟁점만 요약하고 함께 정해지는 것(예: 주저자)은 쟁점의 stakes 줄에서 보여줘서 제목과 쟁점 카드가 어긋나지 않게 · 지도 box 아래 진한 띠를 없애 사람 색을 하나로 통일하고, 제안 상태는 채도가 아니라 점선과 "Proposed" 글자로만 표시 · 강조에서 제외된 box는 회색+흐림으로 바꾸고 "누구의 일을 보여주는 중, 나머지는 흐려졌을 뿐 완료 아님" 안내 줄과 "Show everything" 버튼 · 범례를 Status / Competing / Colors(사람 이름) 묶음으로 · 안내 문구를 "클릭"으로 통일(터치 기기 고려) · 상태 줄에 quote 아이콘이 원문을 연다는 안내 · 날짜는 월을 풀어 쓰고 숫자는 숫자로
 - **History 패널 개선 (11/3, ChatGPT History 평가 9.3/10 반영)**: 위쪽 섹션 바로가기 · 관계 종류 구분(Branched from / Merged from / Branched into / Merged into / Replaced by) · 보류·폐기 이유를 quote와 함께("Dropped because …") · 사람별 입장 변화를 회의 단위로 날짜와 함께(각 단계 클릭 → 발언) · 근거는 최근 5개 + "Show all", "Open in note ↗" · 원문 viewer에서 줄 전체가 아니라 인용된 문장에 형광펜
 
-### F6. Converge Room · 완료 (11/3)
+### F6. CONVERGE Room · 완료 (11/3)
 
 - 사용자 생각 반영 (11/2): Now 화면의 "경합 중인 것" 카드에서 바로 시작한다. 결과는 "그래서 각자 무엇을 하면 되나"로 끝나야 한다 → 수렴안 = 결정 + module별 담당(그림의 색 분할이 바뀜) + 사람별 다음 할 일. Adopt하면 session note로 기록되고 Notion에도 써진다
 - `converge.py`: Round 1~3 orchestration, SSE streaming, 수렴안 schema, Adopt → merge 반영, agenda 생성
 - `ConvergeView.tsx`: 아이디어 선택 → 토론 live stream (agent별 말풍선 + citation chip, 클릭하면 원문) → 수렴안 카드 비교 → Adopt
 - 수렴안에 "아키텍처 변경 + module별 담당자"를 포함해서, Adopt하면 F9 diagram에 바로 반영되게 한다 (F9의 편집 경로 재사용)
 - **DoD**: demo dataset에서 3명의 아이디어를 수렴하는 session이 2분 안에 끝나고, delegate 주장의 citation이 전부 유효
-- **구현**: Now 화면의 경합 카드 → "Converge on this" → delegate(사람마다 1명, 그 사람의 기록만 입력) 2라운드 병렬 호출 → facilitator가 수렴안 2개(결정, 이유 + quote, 사람별 다음 할 일과 module, 예상 수용도, 위험). quote가 검증되지 않은 발언은 "unsupported"로 흐리게 표시하고, 근거 없는 이유는 버린다. Adopt → session note(결정 + 사람별 "Next for …" 줄) + Notion write-back → module 참여 내용과 할 일이 바뀌고 briefing을 다시 쓴다. `?converge=<id>`로 끝난 Room을 다시 연다
+- **구현**: Now 화면의 경합 카드 → "CONVERGE on this" → delegate(사람마다 1명, 그 사람의 기록만 입력) 2라운드 병렬 호출 → facilitator가 수렴안 2개(결정, 이유 + quote, 사람별 다음 할 일과 module, 예상 수용도, 위험). quote가 검증되지 않은 발언은 "unsupported"로 흐리게 표시하고, 근거 없는 이유는 버린다. Adopt → session note(결정 + 사람별 "Next for …" 줄) + Notion write-back → module 참여 내용과 할 일이 바뀌고 briefing을 다시 쓴다. `?converge=<id>`로 끝난 Room을 다시 연다
 - 결과: 시나리오 B(3명) 약 1분 $0.06, 시나리오 A(2명) $0.04. delegate 6개 중 4~5개가 quote로 뒷받침되고, 근거가 부족하면 "본인에게 물어봐야 한다"고 말한다. muse-wonder-1.0이 없어서 facilitator도 Spark(reasoning medium)
 
 ### F7. Eval · 완료 (11/3)
 
 - `evaluate.py`: idea clustering (B³ F1), 발언자 attribution 정확도, lineage edge F1, quote 검증률, delegate citation faithfulness, 회의당 비용·latency
 - **DoD**: README에 결과 표
-- **구현**: `evaluate.py` (`uv run python -m app.evaluate [--rooms] [--json]`). 모델은 아이디어 이름을 자기 말로 붙이므로, 같은 발언(회의·줄·발언자)을 가장 많이 공유하는 gold 아이디어와 짝지은 뒤 비교한다. 지표: 아이디어 묶음 B³ F1, 계보 edge F1, 보류·폐기 판정, 최종 상태, 입장(정확·편), 발언자, 결정·할 일·질문 F1, quote 원문 일치·검증 통과율, Converge Room 근거율, 회의당 비용·시간. gold를 gold와 비교하면 모두 1.0이 나오는 것을 test로 확인
-- **결과 (3개 팀 평균)**: 첫 측정에서 오류를 분석해 prompt를 한 번 고침 (결과 보고를 지지로, 후속 아이디어를 새 아이디어로, 교수의 지시를 결정이 아닌 것으로 본 오류) → B³ F1 0.83 → 0.89, 계보 F1 0.77 → 0.89, 입장 정확 0.66 → 0.82, 입장 편 0.81 → 0.87, 결정 F1 0.58 → 0.61, 최종 상태 0.96 → 0.88 (한 팀에서 후반 논의가 다른 아이디어에 붙어 휴면 판정이 달라짐). 발언자 0.99, quote 원문 일치 1.00, Converge Room 발언의 quote 근거 1.00, 회의당 약 $0.01·20초. 같은 데이터로 한 번 조정했으므로 benchmark가 아니라 sanity check로 본다
+- **구현**: `evaluate.py` (`uv run python -m app.evaluate [--rooms] [--json]`). 모델은 아이디어 이름을 자기 말로 붙이므로, 같은 발언(회의·줄·발언자)을 가장 많이 공유하는 gold 아이디어와 짝지은 뒤 비교한다. 지표: 아이디어 묶음 B³ F1, 계보 edge F1, 보류·폐기 판정, 최종 상태, 입장(정확·편), 발언자, 결정·할 일·질문 F1, quote 원문 일치·검증 통과율, CONVERGE Room 근거율, 회의당 비용·시간. gold를 gold와 비교하면 모두 1.0이 나오는 것을 test로 확인
+- **결과 (3개 팀 평균)**: 첫 측정에서 오류를 분석해 prompt를 한 번 고침 (결과 보고를 지지로, 후속 아이디어를 새 아이디어로, 교수의 지시를 결정이 아닌 것으로 본 오류) → B³ F1 0.83 → 0.89, 계보 F1 0.77 → 0.89, 입장 정확 0.66 → 0.82, 입장 편 0.81 → 0.87, 결정 F1 0.58 → 0.61, 최종 상태 0.96 → 0.88 (한 팀에서 후반 논의가 다른 아이디어에 붙어 휴면 판정이 달라짐). 발언자 0.99, quote 원문 일치 1.00, CONVERGE Room 발언의 quote 근거 1.00, 회의당 약 $0.01·20초. 같은 데이터로 한 번 조정했으므로 benchmark가 아니라 sanity check로 본다
 
 ### F8. Ship · 11/4(수) 저녁 ~ 11/5(목) 09:00 · 5h
 
@@ -405,7 +405,7 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 
 key가 11/3 이후에 오면 F2·F6를 11/4에 몰아서 해야 한다. 그래서 F2·F6 코드는 key가 오기 전에 미리 작성해 둔다.
 
-일정이 밀리면 자르는 순서: S\* 전부 → F7 축소 (핵심 지표 2개) → F5를 Lineage View 안의 panel로 축소. **F6 (Converge Room)은 끝까지 유지한다.** demo의 클라이맥스다.
+일정이 밀리면 자르는 순서: S\* 전부 → F7 축소 (핵심 지표 2개) → F5를 Lineage View 안의 panel로 축소. **F6 (CONVERGE Room)은 끝까지 유지한다.** demo의 클라이맥스다.
 
 ---
 
@@ -419,7 +419,7 @@ synthetic Ruiz Lab(long-term-dependency) 한 팀으로 처음부터 끝까지 �
 | 0:15–0:35 | Notion 옆 side panel → Connect and update → board (기다리는 구간은 편집으로 자름) |
 | 0:35–1:05 | Now: 상태 문장 → Agreed · Still open · Your next step → 인용 클릭 → 회의록 원문 줄 highlight |
 | 1:05–1:20 | Work map: 세 색으로 나뉜 COMPETING module, 사람 클릭 → 그 사람의 일만 highlight |
-| 1:20–2:00 | Converge Room: delegate 2 round → 수렴안 → Adopt → Notion에 Converge session page |
+| 1:20–2:00 | CONVERGE Room: delegate 2 round → 수렴안 → Adopt → Notion에 CONVERGE session page |
 | 2:00–2:25 | History: Play로 RNN → LSTM → GRU → attention → Transformer 계보 재생 → Sora의 whiteboard 이미지 |
 | 2:25–2:40 | README 평가 표, `./start.sh` 한 줄, repo 주소로 마무리 |
 
@@ -447,5 +447,5 @@ synthetic Ruiz Lab(long-term-dependency) 한 팀으로 처음부터 끝까지 �
 2. Meta Model API key: credit($150)이 충전되면 전달받음 → 그 전에는 key 없이 되는 작업부터
 3. Demo 데이터: **synthetic**. 하나의 큰 연구 주제, 3~5명, 경합하는 아이디어, 시점과 공통·대립 의견이 담긴 회의 기록
 4. Commit: 작업이 끝나면 추천 commit message를 제시하고, 사용자가 확인 후 직접 commit
-5. 제품명: 미정 (Converge 가칭으로 진행)
+5. 제품명: 미정 (CONVERGE 가칭으로 진행)
 6. F9 Architecture Canvas 추가 (사용자 제안): 회의록의 표·토글·이미지까지 읽어 구조를 그리고, 담당자 색과 함께 편집·Notion write-back을 지원. key 없이 gold로 먼저 구현하고, F2에서 Spark vision으로 연결

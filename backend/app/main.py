@@ -1,4 +1,4 @@
-"""Converge API server.
+"""CONVERGE API server.
 
 Serves the REST API under /api and, once `npm run build` has produced frontend/dist,
 the web UI from the same process (one server to deploy).
@@ -32,7 +32,7 @@ from app.models import (
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 NOTION_ERRORS = (RuntimeError, NotionClientErrorBase, httpx.HTTPError)
 
-app = FastAPI(title="Converge API", version="0.2.0")
+app = FastAPI(title="CONVERGE API", version="0.2.0")
 # Update jobs run in a background thread per workspace; one server process holds them all.
 jobs: dict[str, UpdateStatus] = {}
 jobs_lock = threading.Lock()
@@ -151,7 +151,7 @@ def connect_notion(request: ConnectRequest) -> Workspace:
     except NOTION_ERRORS as error:
         raise HTTPException(
             400,
-            "Converge cannot open that page. In Notion, open the page menu (•••) → "
+            "CONVERGE cannot open that page. In Notion, open the page menu (•••) → "
             "Connections and add your integration, then try again.",
         ) from error
     workspace = Workspace(
@@ -169,7 +169,7 @@ def connect_notion(request: ConnectRequest) -> Workspace:
 @app.get("/api/notion/{page_id}")
 def find_notion_page(page_id: str) -> dict[str, str | None]:
     """Which workspace a Notion page belongs to: the linked page, one of its notes, the
-    session page Converge writes, or any page below the linked one. The browser extension
+    session page CONVERGE writes, or any page below the linked one. The browser extension
     asks this for the page open beside it, so the panel keeps the team on every sub-page."""
     wanted = page_id.replace("-", "")
     with store.connect() as conn:
@@ -234,7 +234,7 @@ def append_session(
             title=f"{ingest.SESSION_TITLE} — {now:%b} {now.day}, {now.year}",
             text=(
                 f"# {ingest.SESSION_TITLE} — {now:%b} {now.day}, {now.year}\n\n"
-                "Changes the team made in Converge, one per line, in each member's words.\n"
+                "Changes the team made in CONVERGE, one per line, in each member's words.\n"
             ),
         )
         for line in lines:
@@ -289,12 +289,12 @@ def make_edit(workspace_id: str, edit: EditRequest) -> EditResult:
     return EditResult(source=session_id, line=line, module=module, notion=notion)
 
 
-# --- Converge Room ---------------------------------------------------------------
+# --- CONVERGE Room ---------------------------------------------------------------
 
 
 @app.post("/api/workspaces/{workspace_id}/converge")
 def open_converge(workspace_id: str, request: ConvergeRequest) -> ConvergeSession:
-    """Start a Converge Room on an open question; poll GET for the delegates' turns and the
+    """Start a CONVERGE Room on an open question; poll GET for the delegates' turns and the
     facilitator's proposals as they arrive."""
     load_state(workspace_id)  # 404 early for an unknown workspace
 
@@ -310,7 +310,7 @@ def open_converge(workspace_id: str, request: ConvergeRequest) -> ConvergeSessio
 def converge_session(workspace_id: str, session_id: str) -> ConvergeSession:
     session = converge.get(workspace_id, session_id)
     if session is None:
-        raise HTTPException(404, "no such Converge Room session")
+        raise HTTPException(404, "no such CONVERGE Room session")
     return session
 
 
@@ -320,7 +320,7 @@ def adopt_proposal(workspace_id: str, session_id: str, request: AdoptRequest) ->
     in the background so the next steps follow the decision."""
     session = converge.get(workspace_id, session_id)
     if session is None or session.state != "done":
-        raise HTTPException(404, "no finished Converge Room session with that id")
+        raise HTTPException(404, "no finished CONVERGE Room session with that id")
     state = load_state(workspace_id)
     now = session_clock(state)
     try:

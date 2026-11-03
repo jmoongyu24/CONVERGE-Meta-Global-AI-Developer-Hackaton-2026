@@ -149,7 +149,7 @@ SUB_PAGE = "📄 "
 IMAGE_LINE = re.compile(r"^!\[(?P<caption>.*)\]\((?P<url>[^()\s]+)\)$")
 TABLE_SEPARATOR = re.compile(r"^:?-{3,}:?$")
 CELL_BORDER = re.compile(r"(?<!\\)\|")
-SESSION_TITLE = "Converge session"  # pages Converge writes itself; skipped on import
+SESSION_TITLE = "CONVERGE session"  # pages CONVERGE writes itself; skipped on import
 
 
 def plain_text(rich_text: list[dict]) -> str:
@@ -432,7 +432,8 @@ def import_notion(page_id: str) -> tuple[list[Source], list[Asset]]:
     pages: list[dict] = []
     for block in fetch_blocks(client, page_id, nested=False):
         if block["type"] == "child_page":
-            if not block["child_page"]["title"].startswith(SESSION_TITLE):  # Converge's own mirrors
+            # CONVERGE's own mirrors; case-folded so pages titled "Converge session" stay skipped
+            if not block["child_page"]["title"].lower().startswith(SESSION_TITLE.lower()):
                 pages.append(client.pages.retrieve(page_id=block["id"]))
         elif block["type"] == "child_database":
             pages += database_pages(client, block["id"])

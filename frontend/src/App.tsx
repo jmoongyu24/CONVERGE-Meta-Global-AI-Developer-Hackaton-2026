@@ -51,7 +51,7 @@ const initial = new URLSearchParams(window.location.search);
 const initialTab = TABS.find((t) => t.id === initial.get("view"))?.id ?? "lineage";
 const initialQuote = /^(.+):(\d+)$/.exec(initial.get("quote") ?? "");
 const panel = initial.get("panel") === "1";
-const sharedRoom = initial.get("converge"); // ?converge=<session id> reopens a Converge Room
+const sharedRoom = initial.get("converge"); // ?converge=<session id> reopens a CONVERGE Room
 const notionUrl = initial.get("notion");
 
 export default function App() {
@@ -290,7 +290,7 @@ export default function App() {
       >
         <div className="min-w-0">
           <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">
-            Converge{panel && <span className="text-muted"> · {latest.workspace.name}</span>}
+            CONVERGE{panel && <span className="text-muted"> · {latest.workspace.name}</span>}
           </h1>
           {!panel && (
             <p className="text-xs text-ink-2">
@@ -462,9 +462,9 @@ function ConnectScreen({
           both work).
         </li>
         <li>
-          Open the page menu (•••) → <b>Connections</b> → add your Converge integration.
+          Open the page menu (•••) → <b>Connections</b> → add your CONVERGE integration.
         </li>
-        <li>Paste the page link below. Converge reads it and writes your team's briefing.</li>
+        <li>Paste the page link below. CONVERGE reads it and writes your team's briefing.</li>
       </ol>
       <form onSubmit={submit} className="space-y-3">
         <input

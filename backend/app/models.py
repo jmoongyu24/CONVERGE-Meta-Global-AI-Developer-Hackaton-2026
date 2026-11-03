@@ -27,14 +27,14 @@ class Workspace(BaseModel):
     name: str
     description: str = ""
     members: list[Member]
-    notion_page_id: str | None = None  # Notion page that edits made in Converge are written to
+    notion_page_id: str | None = None  # Notion page that edits made in CONVERGE are written to
 
 
 class SourceMeta(BaseModel):
     """A record without its text: enough for timelines and lists."""
 
     id: str
-    kind: Literal["meeting", "note", "session"] = "meeting"  # session: edits made in Converge
+    kind: Literal["meeting", "note", "session"] = "meeting"  # session: edits made in CONVERGE
     occurred_at: datetime
     title: str
     url: str | None = None
@@ -374,7 +374,7 @@ class UpdateStatus(BaseModel):
     cost: float = 0.0  # dollars spent by this run
 
 
-# --- Converge Room (converge.py) -----------------------------------------------
+# --- CONVERGE Room (converge.py) -----------------------------------------------
 
 
 class Position(BaseModel):
