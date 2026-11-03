@@ -8,6 +8,7 @@ import {
   fetchSource,
   type IdeaStatus,
   type LineageState,
+  type LocatedMention,
   type Member,
   type OpKind,
   type Source,
@@ -33,6 +34,23 @@ export function memberColors(workspace: Workspace): Record<string, string> {
     colors[member.id] = isPi(member) || slot >= SERIES.length ? NEUTRAL : SERIES[slot++];
   }
   return colors;
+}
+
+// Inside the extension's side panel Converge is a third-party frame, where browsers may refuse
+// storage; remembering who "I am" is a convenience, so a refusal just forgets it.
+export function remembered(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+export function remember(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // not stored: the choice lasts until the panel reloads
+  }
 }
 
 // --- Formatting ----------------------------------------------------------------
@@ -132,15 +150,6 @@ export function MemberLegend({
         </li>
       ))}
     </ul>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section>
-      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h3>
-      {children}
-    </section>
   );
 }
 
@@ -292,11 +301,17 @@ interface IdeaPanelProps {
   ideaId: string;
   colors: Record<string, string>;
   onSelectIdea: (id: string) => void;
-  onOpenQuote: (sourceId: string, line: number) => void;
+  onOpenQuote: (sourceId: string, line: number, quote?: string) => void;
 }
 
-/** Everything known about one idea at the current point in time, each claim backed by a quote. */
+const EVIDENCE_SHOWN = 5;
+
+/** Everything known about one idea at the current point in time, each claim backed by a quote:
+ * where it came from and what it led to, who stands where and how that changed, what is
+ * still open, and the quotes themselves. */
 export function IdeaPanel({ state, ideaId, colors, onSelectIdea, onOpenQuote }: IdeaPanelProps) {
+  const sections = useRef<Record<string, HTMLElement | null>>({});
+  const [allEvidence, setAllEvidence] = useState(false);
   const idea = state.ideas.find((i) => i.id === ideaId);
   if (!idea) {
     return (
@@ -312,17 +327,70 @@ export function IdeaPanel({ state, ideaId, colors, onSelectIdea, onOpenQuote }: 
     .filter((i) => i.idea === idea.id && (i.kind === "question" || i.kind === "action"))
     .reverse();
   const evidence = state.mentions.filter((m) => m.idea === idea.id).reverse();
+  const born = new Map(state.ideas.map((i) => [i.id, i.born]));
+  const parents = state.edges.filter((e) => e.child === idea.id);
   const children = state.edges.filter((e) => e.parent === idea.id);
-  const links = (ids: string[]) => (
-    <span className="inline-flex flex-wrap gap-x-3">
-      {ids.map((id) => (
-        <IdeaLink key={id} id={id} label={title(id)} onSelect={onSelectIdea} />
-      ))}
-    </span>
+  // A child born in the very meeting that parked or dropped this idea took its place.
+  const replacements = children.filter(
+    (e) => idea.closed && born.get(e.child) === idea.closed.source,
   );
+  const relations: { label: string; ids: string[] }[] = [
+    {
+      label: "Branched from",
+      ids: parents.filter((e) => e.kind === "branch").map((e) => e.parent),
+    },
+    { label: "Merged from", ids: parents.filter((e) => e.kind === "merge").map((e) => e.parent) },
+    { label: "Replaced by", ids: replacements.map((e) => e.child) },
+    {
+      label: "Branched into",
+      ids: children
+        .filter((e) => e.kind === "branch" && !replacements.includes(e))
+        .map((e) => e.child),
+    },
+    { label: "Merged into", ids: children.filter((e) => e.kind === "merge").map((e) => e.child) },
+  ].filter((relation) => relation.ids.length > 0);
+  /** A member's position on this idea after each meeting, in time order: their last stance in
+   * a meeting counts, plain reports do not, and repeats collapse. */
+  const path = (member: string) => {
+    const steps: LocatedMention[] = [];
+    for (const m of state.mentions) {
+      if (m.idea !== idea.id || m.member !== member || m.stance === "inform") continue;
+      if (steps.length && steps[steps.length - 1].source === m.source) steps.pop();
+      if (steps.length && steps[steps.length - 1].stance === m.stance) continue;
+      steps.push(m);
+    }
+    return steps;
+  };
+  const nav = [
+    relations.length ? { id: "lineage", label: "Lineage" } : null,
+    { id: "stances", label: "Stances" },
+    followUps.length ? { id: "next", label: "Next steps" } : null,
+    { id: "evolution", label: "Evolution" },
+    { id: "evidence", label: `Evidence ${evidence.length}` },
+  ].filter((item): item is { id: string; label: string } => item !== null);
+  const anchor = (id: string) => (element: HTMLElement | null) => {
+    sections.current[id] = element;
+  };
+  const shown = allEvidence ? evidence : evidence.slice(0, EVIDENCE_SHOWN);
 
   return (
     <div className="space-y-6">
+      <nav
+        aria-label="Sections"
+        className="sticky -top-5 z-10 -mx-5 -mt-5 flex flex-wrap gap-1.5 border-b border-hairline bg-surface/95 px-5 py-2.5 backdrop-blur"
+      >
+        {nav.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => sections.current[item.id]?.scrollIntoView({ behavior: "smooth" })}
+            className="rounded-full border border-hairline px-2.5 py-0.5 text-xs text-ink-2 hover:border-ink-2 hover:text-ink"
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
       <header>
         <div className="flex items-start gap-2">
           <span className="pt-1.5">
@@ -336,39 +404,99 @@ export function IdeaPanel({ state, ideaId, colors, onSelectIdea, onOpenQuote }: 
           <span className="text-muted">since {date(idea.born)}</span>
         </p>
         <p className="mt-3 text-sm leading-relaxed">{idea.summary}</p>
-        {(idea.parents.length > 0 || children.length > 0) && (
-          <div className="mt-3 space-y-1 text-xs text-ink-2">
-            {idea.parents.length > 0 && <p>From: {links(idea.parents)}</p>}
-            {children.length > 0 && <p>Led to: {links(children.map((e) => e.child))}</p>}
-          </div>
+        {idea.closed && (
+          <button
+            type="button"
+            onClick={() =>
+              idea.closed && onOpenQuote(idea.closed.source, idea.closed.line, idea.closed.quote)
+            }
+            className="mt-3 block w-full rounded-lg border border-hairline bg-page px-3 py-2 text-left text-sm hover:border-ink-2"
+          >
+            <span className="font-semibold">
+              {idea.status === "dropped" ? "Dropped because" : "Parked because"}
+            </span>
+            <span className="text-ink-2"> “{idea.closed.quote}”</span>
+            <span className="block text-xs text-muted">
+              {date(idea.closed.source)} · open in note ↗
+            </span>
+          </button>
         )}
       </header>
 
-      <Section title="Where the team stands">
-        <dl className="space-y-2 text-sm">
+      {relations.length > 0 && (
+        <section ref={anchor("lineage")} className="scroll-mt-14">
+          <Heading>Lineage</Heading>
+          <dl className="space-y-1.5 text-sm">
+            {relations.map((relation) => (
+              <div key={relation.label} className="flex gap-3">
+                <dt className="w-24 shrink-0 text-xs text-muted">{relation.label}</dt>
+                <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                  {relation.ids.map((id) => (
+                    <span key={id}>
+                      <IdeaLink id={id} label={title(id)} onSelect={onSelectIdea} />
+                      <span className="text-xs text-muted"> · {date(born.get(id) ?? "")}</span>
+                    </span>
+                  ))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      <section ref={anchor("stances")} className="scroll-mt-14">
+        <Heading>Where the team stands</Heading>
+        <dl className="space-y-2.5 text-sm">
           {STANCE_GROUPS.map((group) => {
             const members = cells.filter((c) => group.stances.includes(c.latest));
             return (
               <div key={group.label} className="flex gap-3">
-                <dt className="w-20 shrink-0 text-xs text-muted">{group.label}</dt>
-                <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                <dt className="w-20 shrink-0 pt-0.5 text-xs text-muted">{group.label}</dt>
+                <dd className="min-w-0 flex-1 space-y-1.5">
                   {members.length === 0 && <span className="text-muted">—</span>}
-                  {members.map((cell) => (
-                    <span key={cell.member} className="flex items-center gap-1.5 text-ink-2">
-                      <Dot color={colors[cell.member]} />
-                      {name(cell.member)}
-                      <StanceChip stance={cell.latest} />
-                    </span>
-                  ))}
+                  {members.map((cell) => {
+                    const steps = path(cell.member);
+                    return (
+                      <div key={cell.member}>
+                        <span className="flex flex-wrap items-center gap-1.5 text-ink-2">
+                          <Dot color={colors[cell.member]} />
+                          {name(cell.member)}
+                          <StanceChip stance={cell.latest} />
+                        </span>
+                        {steps.length > 1 && (
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-3.5 text-xs text-muted">
+                            Changed:
+                            {steps.map((step, index) => (
+                              <span
+                                key={`${step.source}-${step.line}`}
+                                className="flex items-center gap-1"
+                              >
+                                {index > 0 && <span aria-hidden="true">→</span>}
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenQuote(step.source, step.line, step.quote)}
+                                  title={`“${step.quote}”`}
+                                  className="rounded px-0.5 text-ink-2 hover:bg-wash hover:text-ink"
+                                >
+                                  {STANCE_GLYPH[step.stance]} {step.stance} · {date(step.source)}
+                                </button>
+                              </span>
+                            ))}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </dd>
               </div>
             );
           })}
         </dl>
-      </Section>
+      </section>
 
       {followUps.length > 0 && (
-        <Section title="Open questions & next steps">
+        <section ref={anchor("next")} className="scroll-mt-14">
+          <Heading>Open questions & next steps</Heading>
           <ul className="space-y-1.5 text-sm text-ink-2">
             {followUps.map((item) => (
               <li key={`${item.source}-${item.line}-${item.kind}`} className="flex gap-2">
@@ -377,7 +505,7 @@ export function IdeaPanel({ state, ideaId, colors, onSelectIdea, onOpenQuote }: 
                 </span>
                 <button
                   type="button"
-                  onClick={() => onOpenQuote(item.source, item.line)}
+                  onClick={() => onOpenQuote(item.source, item.line, item.quote)}
                   className="text-left leading-snug hover:underline"
                 >
                   {item.quote}
@@ -386,46 +514,71 @@ export function IdeaPanel({ state, ideaId, colors, onSelectIdea, onOpenQuote }: 
               </li>
             ))}
           </ul>
-        </Section>
+        </section>
       )}
 
-      <Section title="How it evolved">
+      <section ref={anchor("evolution")} className="scroll-mt-14">
+        <Heading>How it evolved</Heading>
         <ol className="space-y-2 border-l border-hairline pl-3 text-sm">
           {[...idea.versions].reverse().map((version) => (
             <li key={version.source}>
-              <p className="text-xs text-muted">{date(version.source)}</p>
+              <button
+                type="button"
+                onClick={() => onOpenQuote(version.source, 0)}
+                className="text-left text-xs text-muted hover:underline"
+              >
+                {date(version.source)} ↗
+              </button>
               <p className="leading-snug text-ink-2">{version.summary}</p>
             </li>
           ))}
         </ol>
-      </Section>
+      </section>
 
-      <Section title={`Evidence · ${evidence.length} quotes`}>
+      <section ref={anchor("evidence")} className="scroll-mt-14">
+        <Heading>{`Evidence · ${evidence.length} quotes`}</Heading>
+        <p className="mb-2 text-xs text-muted">
+          What each person actually said. Click a quote to read it in the meeting note.
+        </p>
         <ul className="space-y-2">
-          {evidence.map((mention) => (
-            <li
-              key={`${mention.source}-${mention.line}-${mention.member}-${mention.stance}`}
-              className="rounded-lg border border-hairline p-3"
-            >
-              <div className="mb-1 flex items-center gap-2 text-xs text-ink-2">
-                <Dot color={colors[mention.member]} />
-                {name(mention.member)}
-                <StanceChip stance={mention.stance} />
-                <span className="ml-auto text-muted">{date(mention.source)}</span>
-              </div>
+          {shown.map((mention) => (
+            <li key={`${mention.source}-${mention.line}-${mention.member}-${mention.stance}`}>
               <button
                 type="button"
-                onClick={() => onOpenQuote(mention.source, mention.line)}
-                className="text-left text-sm leading-snug hover:underline"
-                title="Show this quote in the original note"
+                onClick={() => onOpenQuote(mention.source, mention.line, mention.quote)}
+                className="block w-full rounded-lg border border-hairline p-3 text-left hover:border-ink-2"
               >
-                “{mention.quote}”
+                <span className="mb-1 flex items-center gap-2 text-xs text-ink-2">
+                  <Dot color={colors[mention.member]} />
+                  {name(mention.member)}
+                  <StanceChip stance={mention.stance} />
+                  <span className="ml-auto text-muted">{date(mention.source)}</span>
+                </span>
+                <span className="block text-sm leading-snug">“{mention.quote}”</span>
+                <span className="mt-1 block text-xs text-muted">Open in note ↗</span>
               </button>
             </li>
           ))}
         </ul>
-      </Section>
+        {evidence.length > EVIDENCE_SHOWN && (
+          <button
+            type="button"
+            onClick={() => setAllEvidence(!allEvidence)}
+            className="mt-2 text-xs font-medium text-ink-2 underline underline-offset-2"
+          >
+            {allEvidence ? "Show fewer" : `Show all ${evidence.length} quotes`}
+          </button>
+        )}
+      </section>
     </div>
+  );
+}
+
+function Heading({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+      {children}
+    </h3>
   );
 }
 
@@ -451,14 +604,29 @@ const isSeparator = (row: string) =>
   row.startsWith("|") && cellsOf(row).every((cell) => TABLE_SEPARATOR.test(cell));
 
 /** One line of a note, drawn the way Notion shows it: tables, images, toggles, sub-pages. */
+/** `text` with `quote` marked, so the exact sentence behind a claim stands out in its line. */
+function marked(text: string, quote: string | undefined): ReactNode {
+  const at = quote ? text.indexOf(quote) : -1;
+  if (!quote || at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className="rounded bg-amber-300/70 px-0.5 text-ink">{quote}</mark>
+      {text.slice(at + quote.length)}
+    </>
+  );
+}
+
 function NoteLine({
   text,
   next,
   workspaceId,
+  quote,
 }: {
   text: string;
   next: string | undefined;
   workspaceId: string;
+  quote?: string; // marked inside the line when given
 }) {
   const content = text.trimStart();
   const indent = { paddingLeft: `${(text.length - content.length) * 9}px` };
@@ -509,12 +677,13 @@ function NoteLine({
   return (
     <p style={indent} className={`whitespace-pre-wrap ${mark?.[2] ?? ""}`}>
       {mark && <span className="mr-2 text-muted">{mark[1]}</span>}
-      {mark ? content.replace(mark[0], "") : content || "\u00a0"}
+      {marked(mark ? content.replace(mark[0], "") : content || "\u00a0", quote)}
     </p>
   );
 }
 
-/** The original note with the quoted line highlighted: every claim can be checked at its source. */
+/** The original note with the quoted line highlighted and the quote itself marked: every claim
+ * can be checked against what was actually said. */
 export function SourceViewer({ workspaceId, sourceId, line, quote, onClose }: SourceViewerProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const target = useRef<HTMLLIElement>(null);
@@ -588,7 +757,12 @@ export function SourceViewer({ workspaceId, sourceId, line, quote, onClose }: So
                 {number}
               </span>
               <div className="min-w-0 flex-1">
-                <NoteLine text={text} next={lines[number]?.text} workspaceId={workspaceId} />
+                <NoteLine
+                  text={text}
+                  next={lines[number]?.text}
+                  workspaceId={workspaceId}
+                  quote={number === line ? quote : undefined}
+                />
               </div>
             </li>
           ),

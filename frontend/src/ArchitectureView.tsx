@@ -22,8 +22,9 @@ const LAYOUT_OPTIONS = {
   "elk.direction": "RIGHT",
   "elk.hierarchyHandling": "INCLUDE_CHILDREN",
   "elk.edgeRouting": "ORTHOGONAL",
-  "elk.layered.spacing.nodeNodeBetweenLayers": "40",
-  "elk.spacing.nodeNode": "20",
+  "elk.layered.spacing.nodeNodeBetweenLayers": "44",
+  "elk.spacing.nodeNode": "22",
+  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
   "elk.padding": "[top=22,left=12,bottom=12,right=26]",
   // Absolute coordinates for every box and wire, whatever block they sit in.
   "elk.json.shapeCoords": "ROOT",
@@ -243,9 +244,12 @@ export function ArchitectureCanvas({
   const subtitle = (m: ModuleView) => {
     if (m.status === "removed") return "removed";
     const people = peopleOf(m).map((member) => shortName(name(member)));
-    return people.length ? people.join(" · ") : "Unassigned";
+    const who = people.length ? people.join(" · ") : "Unassigned";
+    return m.status === "proposed" ? `Proposed · ${who}` : who;
   };
-  const width = (m: ModuleView) => Math.max(boxWidth(m, subtitle(m)), peopleOf(m).length * 58);
+  // Room for the stripes, and for the "✓ " that marks a module in use.
+  const width = (m: ModuleView) =>
+    Math.max(boxWidth(m, subtitle(m)) + (m.status === "adopted" ? 16 : 0), peopleOf(m).length * 58);
   // Lay out again only when the structure changes, not on every render.
   const signature = JSON.stringify([
     direction,
@@ -258,6 +262,7 @@ export function ArchitectureCanvas({
     version: number; // bumps on every new layout so wires fade in at their new place
   } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `signature` stands for modules and wires
   useEffect(() => {
@@ -299,6 +304,16 @@ export function ArchitectureCanvas({
       onSelect(moduleId);
     }
   };
+  const active = hovered ?? selected;
+  const touches = (wire: Wire, id: string) => wire.from === id || wire.to === id;
+  const near = active
+    ? new Set([active, ...wires.filter((w) => touches(w, active)).flatMap((w) => [w.from, w.to])])
+    : null;
+  const involves = (id: string) => {
+    const module = modules.find((m) => m.id === id);
+    return !!module && !!focus && peopleOf(module).includes(focus);
+  };
+  const dim = (id: string) => (focus ? !involves(id) : near ? !near.has(id) : false);
   const shape = (module: ModuleView, block = false) => {
     const box = shown?.boxes.get(module.id);
     return (
@@ -312,10 +327,11 @@ export function ArchitectureCanvas({
           subtitle={subtitle(module)}
           change={previous ? changes.get(module.id) : undefined}
           selected={module.id === selected}
-          faded={!!focus && !peopleOf(module).includes(focus)}
+          faded={dim(module.id)}
           block={block}
           onSelect={onSelect}
           onKey={activate}
+          onHover={setHovered}
         />
       )
     );
@@ -327,7 +343,9 @@ export function ArchitectureCanvas({
         <svg
           viewBox={`0 0 ${shown.width} ${shown.height}`}
           width="100%"
-          style={{ maxWidth: shown.width * 1.5, minWidth: Math.min(shown.width, 300) }}
+          // Never shrink below 85%: in a narrow panel the map scrolls sideways instead of
+          // turning its labels unreadable.
+          style={{ maxWidth: shown.width * 1.5, minWidth: shown.width * 0.85 }}
           className={`block ${layout.signature === signature ? "" : "opacity-60"}`}
           aria-label={`Architecture with ${modules.length} modules`}
         >
@@ -354,19 +372,21 @@ export function ArchitectureCanvas({
           {wires.map((wire) => {
             const points = shown.paths.get(wire.key);
             if (!points) return null;
-            const ends = [wire.from, wire.to].map((id) => modules.find((m) => m.id === id));
-            const tentative = ends.some((m) => m?.status !== "adopted");
-            const faded = !!focus && !ends.some((m) => m && peopleOf(m).includes(focus));
+            // Wires stay quiet until a box or a person is picked; then that part's wires speak.
+            const strong = active
+              ? touches(wire, active)
+              : !!focus && (involves(wire.from) || involves(wire.to));
+            const removed = wire.kind === "removed";
             return (
               <path
                 key={`${wire.key}@${layout.version}`}
                 d={routePath(points)}
                 fill="none"
-                stroke={wire.kind === "removed" ? MUTED : "var(--color-ink-2)"}
-                strokeWidth={wire.kind === "added" ? 2.25 : 1.25}
-                strokeDasharray={tentative ? "5 4" : undefined}
-                opacity={wire.kind === "removed" || faded ? 0.35 : 1}
-                markerEnd={`url(#${wire.kind === "removed" ? "arch-arrow-muted" : "arch-arrow"})`}
+                stroke={strong ? "var(--color-ink)" : MUTED}
+                strokeWidth={strong ? 2 : wire.kind === "added" ? 1.75 : 1.1}
+                strokeDasharray={removed ? "5 4" : undefined}
+                opacity={strong ? 1 : removed || active || focus ? 0.25 : 0.6}
+                markerEnd={`url(#${strong ? "arch-arrow" : "arch-arrow-muted"})`}
                 className="appear"
               />
             );
@@ -436,7 +456,13 @@ export function ArchitectureView({
         selected={selected}
         onSelect={onSelect}
       />
-      <Legend />
+      <Legend
+        people={state.workspace.members.map((m) => ({
+          id: m.id,
+          name: shortName(m.name),
+          color: colors[m.id] ?? MUTED,
+        }))}
+      />
       <section>
         <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
           Who works on what
@@ -481,27 +507,58 @@ export function ArchitectureView({
   );
 }
 
-/** How to read the diagram: stripes are people, dashes are proposals, VS is a contest. */
-export function Legend({ removed = true }: { removed?: boolean }) {
+/** How to read the map: ✓ in use, dashes are proposals, ⚔ marks competing approaches, and
+ * stripe colors are the people working on a part. */
+export function Legend({
+  removed = true,
+  people = [],
+}: {
+  removed?: boolean;
+  people?: { id: string; name: string; color: string }[];
+}) {
   return (
-    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2">
-      <li className="flex items-center gap-1.5">
-        <LegendBox /> Adopted
-      </li>
-      <li className="flex items-center gap-1.5">
-        <LegendBox dashed /> Proposed
-      </li>
-      {removed && (
-        <li className="flex items-center gap-1.5">
-          <LegendBox dashed faded /> Removed
-        </li>
+    <dl className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-ink-2">
+      <div className="flex items-center gap-2">
+        <dt className="font-semibold text-muted">Status</dt>
+        <dd className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5">
+            <LegendBox /> ✓ In use
+          </span>
+          <span className="flex items-center gap-1.5">
+            <LegendBox dashed /> Proposed
+          </span>
+          {removed && (
+            <span className="flex items-center gap-1.5">
+              <LegendBox dashed faded /> Removed
+            </span>
+          )}
+        </dd>
+      </div>
+      <div className="flex items-center gap-2">
+        <dt className="font-semibold text-muted">Competing</dt>
+        <dd className="flex items-center gap-1.5">
+          <span className="rounded-full bg-ink px-1.5 text-[9px] font-bold text-surface">⚔</span>
+          people propose different approaches for one part
+        </dd>
+      </div>
+      {people.length > 0 && (
+        <div className="flex items-center gap-2">
+          <dt className="font-semibold text-muted">Colors</dt>
+          <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {people.map((person) => (
+              <span key={person.id} className="flex items-center gap-1">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2.5 w-2.5 rounded-sm"
+                  style={{ background: person.color }}
+                />
+                {person.name}
+              </span>
+            ))}
+          </dd>
+        </div>
       )}
-      <li className="flex items-center gap-1.5">
-        <span className="rounded-full bg-ink px-1.5 text-[9px] font-bold text-surface">VS</span>
-        Competing approaches
-      </li>
-      <li>Stripe colors = who works on it</li>
-    </ul>
+    </dl>
   );
 }
 
@@ -535,6 +592,7 @@ function ModuleShape({
   block = false,
   onSelect,
   onKey,
+  onHover,
 }: {
   clip: string;
   module: ModuleView;
@@ -547,6 +605,7 @@ function ModuleShape({
   block?: boolean;
   onSelect: (id: string) => void;
   onKey: (event: KeyboardEvent, id: string) => void;
+  onHover?: (id: string | null) => void;
 }) {
   const removed = module.status === "removed";
   const dashed = removed || module.status === "proposed" ? "5 4" : undefined;
@@ -554,7 +613,10 @@ function ModuleShape({
   const stripes = people.length ? people : [{ member: "nobody", color: MUTED }];
   const stripe = box.width / stripes.length;
   const radius = block ? 12 : 8;
-  const badges = [module.contested && !removed ? "VS" : null, label].filter(Boolean) as string[];
+  const badges = [module.contested && !removed ? "⚔ COMPETING" : null, label].filter(
+    Boolean,
+  ) as string[];
+  const inUse = module.status === "adopted" && !removed && !block;
   return (
     // biome-ignore lint/a11y/useSemanticElements: SVG has no <button>; role + key handlers make the box operable
     <g
@@ -565,14 +627,28 @@ function ModuleShape({
       }`}
       onClick={() => onSelect(module.id)}
       onKeyDown={(event) => onKey(event, module.id)}
+      onMouseEnter={() => onHover?.(module.id)}
+      onMouseLeave={() => onHover?.(null)}
+      onFocus={() => onHover?.(module.id)}
+      onBlur={() => onHover?.(null)}
       className="cursor-pointer outline-none"
       opacity={faded ? 0.3 : 1}
       style={{
         transform: `translate(${box.x}px, ${box.y}px)`,
-        transition: "transform 450ms ease-out, opacity 200ms",
+        transition: "transform 450ms ease-out, opacity 200ms, filter 200ms",
+        filter: faded ? "grayscale(1)" : undefined,
       }}
     >
-      <title>{module.note ? `${module.title}: ${module.note}` : module.title}</title>
+      <title>
+        {[
+          module.note ? `${module.title}: ${module.note}` : module.title,
+          module.contested && !removed
+            ? "Competing approaches: people propose different ways to build this part."
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n")}
+      </title>
       <clipPath id={clip}>
         <rect width={box.width} height={box.height} rx={radius} />
       </clipPath>
@@ -596,17 +672,8 @@ function ModuleShape({
                 x={index * stripe}
                 width={stripe}
                 height={box.height}
-                style={{ fill: tint(color, block ? 7 : 24) }}
+                style={{ fill: tint(color, block ? 7 : 30) }}
               />
-              {!block && (
-                <rect
-                  x={index * stripe}
-                  y={box.height - 4}
-                  width={stripe}
-                  height={4}
-                  fill={color}
-                />
-              )}
             </g>
           ))}
         </g>
@@ -628,6 +695,7 @@ function ModuleShape({
         className={`fill-ink font-semibold ${block ? "text-[11px] uppercase tracking-wide" : "text-[12px]"}`}
         opacity={removed ? 0.6 : 1}
       >
+        {inUse ? "✓ " : ""}
         {truncate(module.title, 34)}
       </text>
       <text
@@ -715,7 +783,7 @@ interface PanelProps extends Collaboration {
   colors: Record<string, string>;
   onSelectModule: (id: string) => void;
   onSelectIdea: (id: string) => void;
-  onOpenQuote: (sourceId: string, line: number) => void;
+  onOpenQuote: (sourceId: string, line: number, quote?: string) => void;
 }
 
 /** One module: who builds it, how it is wired, what the team says about it, and its history,
@@ -838,7 +906,7 @@ export function ModulePanel(props: PanelProps) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => onOpenQuote(item.source, item.line)}
+                  onClick={() => onOpenQuote(item.source, item.line, item.quote)}
                   className="text-left leading-snug hover:underline"
                 >
                   {item.quote}
@@ -863,7 +931,7 @@ export function ModulePanel(props: PanelProps) {
                 </p>
                 <button
                   type="button"
-                  onClick={() => onOpenQuote(op.source, op.line)}
+                  onClick={() => onOpenQuote(op.source, op.line, op.quote)}
                   className="text-left leading-snug text-ink-2 hover:underline"
                   title="Show this quote in the original note"
                 >

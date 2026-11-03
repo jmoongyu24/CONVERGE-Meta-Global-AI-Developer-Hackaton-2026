@@ -23,6 +23,7 @@ from app.models import (
     Assignment,
     Board,
     Claim,
+    Contest,
     Contribution,
     Evidence,
     Extraction,
@@ -34,6 +35,7 @@ from app.models import (
     Proposal,
     SourceAnalysis,
     StanceShift,
+    Step,
     Synthesis,
 )
 from app.pipeline import build_state, check_board, repair_quote
@@ -227,6 +229,9 @@ def test_dormancy_and_stance_shifts() -> None:
     assert status["gru"] == "dormant"  # merged into gru-attention, then never discussed alone
     assert status["conv-encoder"] == "dropped"
     assert status["lstm"] == "parked"
+    closed = {i.id: i.closed for i in state.ideas if i.closed}
+    assert closed["conv-encoder"].quote == "Dropping the conv encoder."
+    assert set(closed) == {"vanilla-rnn", "lstm", "conv-encoder"}
     # Daniel came around on attention: a challenge in September, support in November.
     november = replay("long-term-dependency", as_of="2014-11-12-group-meeting")
     shift = StanceShift(member="daniel", idea="soft-attention", before="challenge", after="support")
@@ -492,22 +497,44 @@ def test_briefing_keeps_only_claims_whose_quotes_check_out() -> None:
     kickoff = sources[0]
     good = Evidence(source=kickoff.id, quote="Peg-in-hole insertion with 0.5 mm clearance")
     bad = Evidence(source=kickoff.id, quote="a sentence nobody wrote")
+
+    def step(text: str, found: Evidence, contest: int | None) -> Step:
+        return Step(text=text, why="", due="", contest=contest, evidence=[found])
+
+    contests = [
+        Contest(
+            question="Made up?", stakes="", module=None, sides=[], decide_by=None, evidence=[bad]
+        ),
+        Contest(
+            question="DR or ID?", stakes="", module=None, sides=[], decide_by=None, evidence=[good]
+        ),
+    ]
     board = Board(
+        headline=Claim(text="Insertion is open", evidence=[good]),
         problem=Claim(text="Tight insertion", evidence=[good, bad]),
         status=Claim(text="Invented", evidence=[bad]),
+        agreed=[Claim(text="Hardware only", evidence=[good])],
         people=[
             PersonFocus(
-                member="Hana", idea=Claim(text="DR", evidence=[good]), next=[], modules=["x"]
+                member="Hana",
+                idea=Claim(text="DR", evidence=[good]),
+                next=[step("Widen ranges", good, 1), step("Invent", bad, 0)],
+                modules=["x"],
             ),
             PersonFocus(member="Stranger", idea=None, next=[], modules=[]),
         ],
-        contests=[],
+        contests=contests,
     )
     checked, issues = check_board(board, workspace, sources, modules=set())
     assert checked.problem is not None and checked.problem.evidence == [good]
-    assert checked.status is None
-    assert [p.member for p in checked.people] == ["hana"] and checked.people[0].modules == []
-    assert len(issues) == 4  # two missing quotes, the dropped status, the unknown member
+    assert checked.status is None and checked.headline is not None and len(checked.agreed) == 1
+    assert [c.question for c in checked.contests] == ["DR or ID?"]
+    hana = checked.people[0]
+    assert [p.member for p in checked.people] == ["hana"] and hana.modules == []
+    assert [(s.text, s.contest) for s in hana.next] == [("Widen ranges", 0)]  # index remapped
+    # four quotes not found (problem, status, contest, step), the dropped status, contest,
+    # and step, and the unknown member
+    assert len(issues) == 8
 
 
 def fake_model(calls: list[str]):
@@ -527,7 +554,8 @@ def fake_model(calls: list[str]):
         claim = Claim(
             text="Insertion", evidence=[Evidence(source="2026-03-04-kickoff", quote=quote)]
         )
-        return Board(problem=claim, status=None, people=[], contests=[]), llm.Usage(cost=0.02)
+        board = Board(headline=claim, problem=claim, status=None, agreed=[], people=[], contests=[])
+        return board, llm.Usage(cost=0.02)
 
     return complete
 

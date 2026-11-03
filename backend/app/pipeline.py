@@ -34,6 +34,7 @@ from app.models import (
     IdeaView,
     Item,
     LineageState,
+    Located,
     LocatedItem,
     LocatedMention,
     LocatedModuleOp,
@@ -49,6 +50,7 @@ from app.models import (
     SourceMeta,
     StanceCell,
     StanceShift,
+    Step,
     Workspace,
 )
 
@@ -65,20 +67,35 @@ Return one analysis per note, in the order given, with:
 
 ops: changes to the idea registry.
 - new: a research direction someone argues for (a method, model, or approach; not a task or \
-a result). No parents.
-- branch: a new idea derived from exactly one existing idea. merge: a new idea that combines \
-two or more existing ideas.
+a result) that does not grow out of an existing idea. The team's current baseline counts as \
+an idea too (e.g. "Vanilla RNN baseline"). No parents.
+- branch: a new idea that grows out of exactly one existing idea: a variant, successor, \
+extension, or replacement of it (a lighter or faster version, the next step in its line). \
+Prefer branch over new whenever a proposal builds on or replaces a registry idea.
+- merge: a new idea that combines two or more existing ideas (e.g. "GRU encoder + soft \
+attention" from "GRU" and "soft attention").
 - update: an existing idea was refined; give title or summary only when they changed.
 - park: put on hold. drop: abandoned.
 Reuse registry ids for existing ideas; new ideas get short kebab-case ids. owner = the member \
 who proposed it.
 
-mentions: each member's stance on an idea in this note: propose (puts it forward), support, \
-refine (improves it), question (asks without taking a side), challenge (argues against it), \
-inform (reports facts or results without taking a side).
+mentions: each member's stance on an idea in this note:
+- propose: puts the idea forward; also the idea's own champion arguing for it again later.
+- support: someone other than its champion argues for it.
+- refine: proposes a change, extension, or condition for the idea.
+- question: asks about it, or doubts it in the form of a question, without arguing against it.
+- challenge: argues against the idea itself, including naming a limitation as an objection \
+(e.g. "both are still sequential").
+- inform: reports results, numbers, or facts about it, even favorable ones, without arguing \
+for or against.
 
-items: question (still open), decision (settled), action (who will do what next; member = \
-who), consensus (the whole team agreed). Link the idea and module an item is about.
+items:
+- decision: something this meeting settles: an approach chosen, an option kept or dropped, a \
+rule or constraint the team adopts, or a call the PI makes. Not a plan to decide later.
+- action: who will do what next (member = who).
+- question: an open question nobody answered.
+- consensus: a point the whole team agreed on.
+Link the idea and module an item is about.
 
 modules: the architecture of what the team builds: components, layers, stages, tools, data, \
 and benchmarks, and how work flows between them (inputs = the modules that feed this one). \
@@ -112,26 +129,45 @@ ids that are in the registry or that you introduced earlier in this answer. Repo
 notes say; do not guess at intentions they do not state. Write titles, summaries, notes, and \
 approaches in the language of the notes."""
 
-BOARD_PROMPT = """You write the briefing a research team sees beside its notes: the few things \
-a member needs in order to know where things stand and what to do next. Weigh the latest \
-notes most; older notes count only where they still hold.
+BOARD_PROMPT = """You write the briefing a research team sees beside its notes. Someone who \
+has never seen the team must understand it in five seconds, so every line is short, plain, \
+and concrete. Weigh the latest notes most; older notes count only where they still hold.
 
 Return:
-- problem: the research problem the team is solving now, in one plain sentence.
-- status: where things stand, in at most two sentences: what is settled, what is still \
-open, and the next decision or deadline.
+- headline: the team's situation now in one sentence of at most 14 words, about the first \
+(most urgent) contest when there is one: what is still open and when or how it gets \
+decided. Name only what that contest asks; what else its decision settles goes in its \
+stakes, not in the headline. Never word an open question as already decided (write "The \
+main claim is still open; the team decides it on June 3.", not "Main claim decided on June \
+3."). With no contests, say what was just settled or what the team does next.
+- problem: the research problem, in one sentence of at most 16 words.
+- status: where things stand, in at most two sentences.
+- agreed: up to three points of substance the whole team has settled and that still hold \
+(a method, metric, evaluation, or scope choice), newest first, each at most 10 words and \
+worded as the settled point itself. Leave out plans to decide something later; those \
+belong in headline and contests.
 - people: one entry per roster member, in roster order, with member = their roster id. \
-idea: the approach or position they push now, in one line. next: their next one to three \
-concrete steps, most important first, from action items and commitments in the latest \
-notes. modules: ids of the modules they work on.
+idea: the approach or position they push now, at most 10 words. next: up to two next \
+steps, most important first, each with text (at most 10 words, starting with a verb), why \
+(one natural sentence of at most 12 words on how it helps the team, e.g. "Helps the team \
+choose one main research claim."), due (when it is due as a natural phrase, e.g. "Before \
+the November 4 meeting"; "" when the notes give no date), and contest (the index in \
+contests of the question it helps settle, or null). modules: ids of the modules they work \
+on.
 - contests: open disagreements that still need a decision, most important first, at most \
-three: the question in plain words, the module where the competing approaches meet (if \
-any), each side's member ids and position in a few words, and decide_by when the notes say \
+three: the question in at most 12 words; stakes, one sentence of at most 12 words on what \
+the decision settles for the team (e.g. "Decides the paper's main contribution and lead \
+author."); the module where the competing approaches meet (if any); each side's member \
+ids and position, one line of at most 12 words saying what that side wants and why, so a \
+newcomer sees how the sides differ; and decide_by (at most 6 words) when the notes say \
 when or how it will be decided.
 
-Every claim needs evidence: one to three quotes copied exactly, character for character, \
-from the notes, each with its source id; prefer the latest notes. Leave out what you cannot \
-support. Write in the language of the notes."""
+Write full, plain sentences a newcomer can read aloud: no abbreviations or shorthand, \
+dates with the month spelled out ("November 4", not "11/04"), and other numbers as digits \
+("4,000-token documents").
+Every claim, agreed point, step, and contest needs evidence: one to three quotes copied \
+exactly, character for character, from the notes, each with its source id; prefer the \
+latest notes. Leave out what you cannot support. Write in the language of the notes."""
 
 ROSTER_PROMPT = """List the people who take part in these research meeting notes. For each: \
 id (first name in lowercase ASCII), name as written, role if the notes state it (PI, PhD \
@@ -326,11 +362,15 @@ def build_state(
                 idea.summary = op.summary or idea.summary
                 idea.owner = owner or idea.owner
                 idea.status = "active"
+                idea.closed = None
                 idea.versions.append(
                     IdeaVersion(source=source.id, title=idea.title, summary=idea.summary)
                 )
             else:
                 ideas[op.idea].status = "parked" if op.op == "park" else "dropped"
+                ideas[op.idea].closed = Located(
+                    source=source.id, line=locate(source.text, op.quote) or 0, quote=op.quote
+                )
             touched.add(op.idea)
             applied.append(op)
 
@@ -863,23 +903,9 @@ def check_board(
             return None
         return Claim(text=found.text, evidence=checked)
 
-    people = []
-    for person in board.people:
-        member = members.get(person.member.lower())
-        if member is None:
-            issues.append(f"unknown member {person.member!r}")
-            continue
-        steps = [claim(step, f"{member}'s next step") for step in person.next]
-        people.append(
-            PersonFocus(
-                member=member,
-                idea=claim(person.idea, f"{member}'s idea"),
-                next=[step for step in steps if step],
-                modules=[m for m in person.modules if m in modules],
-            )
-        )
     contests = []
-    for contest in board.contests:
+    kept: dict[int, int] = {}  # the model's contest index -> its index after checking
+    for index, contest in enumerate(board.contests):
         checked = evidence(contest.evidence)
         sides = [
             ContestSide(
@@ -891,20 +917,49 @@ def check_board(
         if not checked:
             issues.append(f"contest dropped: no quote checks out ({contest.question!r})")
             continue
+        kept[index] = len(contests)
         contests.append(
             Contest(
                 question=contest.question,
+                stakes=contest.stakes,
                 module=contest.module if contest.module in modules else None,
                 sides=[side for side in sides if side.members],
                 decide_by=contest.decide_by,
                 evidence=checked,
             )
         )
+
+    def step_of(found: Step, label: str) -> Step | None:
+        checked = evidence(found.evidence)
+        if not checked:
+            issues.append(f"{label} dropped: no quote checks out ({found.text!r})")
+            return None
+        contest = kept.get(found.contest) if found.contest is not None else None
+        return found.model_copy(update={"evidence": checked, "contest": contest})
+
+    people = []
+    for person in board.people:
+        member = members.get(person.member.lower())
+        if member is None:
+            issues.append(f"unknown member {person.member!r}")
+            continue
+        steps = [step_of(step, f"{member}'s next step") for step in person.next]
+        people.append(
+            PersonFocus(
+                member=member,
+                idea=claim(person.idea, f"{member}'s idea"),
+                next=[step for step in steps if step],
+                modules=[m for m in person.modules if m in modules],
+            )
+        )
     order = {m.id: i for i, m in enumerate(workspace.members)}
     people.sort(key=lambda p: order.get(p.member, len(order)))
+    agreed = [claim(point, "agreed point") for point in board.agreed]
     checked_board = Board(
+        headline=claim(board.headline, "headline"),
         problem=claim(board.problem, "problem"),
         status=claim(board.status, "status"),
+        agreed=[point for point in agreed if point],
         people=people,
         contests=contests,
     )

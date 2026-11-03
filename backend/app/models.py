@@ -155,6 +155,14 @@ class IdeaVersion(BaseModel):
     summary: str
 
 
+class Located(BaseModel):
+    """A quote and where it sits in its source."""
+
+    source: str
+    line: int
+    quote: str
+
+
 class IdeaView(BaseModel):
     id: str
     title: str
@@ -165,6 +173,7 @@ class IdeaView(BaseModel):
     born: str  # source where the idea first appeared
     last_active: str  # latest source with an op or mention on the idea
     versions: list[IdeaVersion]
+    closed: Located | None = None  # why it was parked or dropped, in the notes' words
 
 
 class Edge(BaseModel):
@@ -300,22 +309,33 @@ class Claim(BaseModel):
     evidence: list[Evidence]
 
 
+class Step(BaseModel):
+    """A member's next step, with why it matters now and how the team will know it is done."""
+
+    text: str
+    why: str  # how it helps the team, as a short natural sentence
+    due: str  # when it is due, as the notes give it; "" when they give no date
+    contest: int | None  # index of the contest it helps settle
+    evidence: list[Evidence]
+
+
 class PersonFocus(BaseModel):
     member: str
     idea: Claim | None  # the approach or position the member is pushing now
-    next: list[Claim]  # their next one to three steps, most important first
+    next: list[Step]  # their next steps, most important first
     modules: list[str]  # modules they work on
 
 
 class ContestSide(BaseModel):
     members: list[str]
-    position: str  # what this side wants, a few words
+    position: str  # what this side wants and why, in one short line
 
 
 class Contest(BaseModel):
     """An open disagreement that still needs a decision."""
 
     question: str
+    stakes: str  # what the decision settles for the team, so its weight is plain
     module: str | None  # where the competing approaches meet in the architecture, if anywhere
     sides: list[ContestSide]
     decide_by: str | None  # when or how the notes say it gets decided
@@ -323,8 +343,12 @@ class Contest(BaseModel):
 
 
 class Board(BaseModel):
+    headline: (
+        Claim | None
+    )  # the team's situation in one short sentence: what a newcomer reads first
     problem: Claim | None  # the research problem the team works on now
     status: Claim | None  # where things stand: what is settled, what is pending, what is next
+    agreed: list[Claim]  # what the whole team has settled, newest first
     people: list[PersonFocus]
     contests: list[Contest]
 

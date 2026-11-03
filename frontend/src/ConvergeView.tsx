@@ -112,6 +112,7 @@ export function ConvergeRoom({
             Converge Room
           </p>
           <h2 className="mt-1 text-base font-semibold leading-snug">{contest.question}</h2>
+          {contest.stakes && <p className="mt-0.5 text-sm text-ink-2">{contest.stakes}</p>}
           <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2">
             {contest.sides.map((side) => (
               <li key={side.position} className="flex items-center gap-1.5">

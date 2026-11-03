@@ -28,6 +28,8 @@ import {
   isPi,
   MemberLegend,
   memberColors,
+  remember,
+  remembered,
   SourceViewer,
 } from "./ui";
 
@@ -41,23 +43,6 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 const IDLE: UpdateStatus = { state: "idle", step: "", done: 0, total: 0, error: null, cost: 0 };
-
-// Inside the extension's side panel Converge is a third-party frame, where browsers may refuse
-// storage; remembering who "I am" is a convenience, so a refusal just forgets it.
-function remembered(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function remember(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // not stored: the choice lasts until the panel reloads
-  }
-}
 
 // Deep links reopen the same screen: ?ws=<workspace>&mode=history&view=architecture&at=<source>
 // &idea=<idea>&module=<module>&quote=<source>:<line>. The browser extension opens
@@ -297,8 +282,9 @@ export default function App() {
             Converge{panel && <span className="text-muted"> · {latest.workspace.name}</span>}
           </h1>
           {!panel && (
-            <p className="text-xs text-muted">
-              Where your team stands, what to do next, and the work as one picture.
+            <p className="text-xs text-ink-2">
+              AI reads your team's meeting notes and shows what's agreed, what's still open, and who
+              does what next.
             </p>
           )}
         </div>

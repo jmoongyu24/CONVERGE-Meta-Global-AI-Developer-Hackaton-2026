@@ -20,7 +20,7 @@ interface Props {
   colors: Record<string, string>;
   selected: string | null;
   onSelect: (ideaId: string) => void;
-  onOpenQuote: (sourceId: string, line: number) => void;
+  onOpenQuote: (sourceId: string, line: number, quote?: string) => void;
 }
 
 const isOpen = (idea: IdeaView | undefined) =>
@@ -146,7 +146,7 @@ export function TeamView({ state, colors, selected, onSelect, onOpenQuote }: Pro
                         <Position
                           cell={cell}
                           title={`${name(cell.member)}, ${cell.latest}, ${date(cell.source)}: “${quote?.quote ?? ""}”`}
-                          onOpen={() => quote && onOpenQuote(quote.source, quote.line)}
+                          onOpen={() => quote && onOpenQuote(quote.source, quote.line, quote.quote)}
                         />
                       </td>
                     );
@@ -295,7 +295,7 @@ function MemberCard({
             <button
               key={`${item.source}-${item.line}`}
               type="button"
-              onClick={() => onOpenQuote(item.source, item.line)}
+              onClick={() => onOpenQuote(item.source, item.line, item.quote)}
               className="text-left text-xs text-ink-2 hover:underline"
             >
               {truncate(item.quote, 70)}
@@ -332,7 +332,7 @@ function ItemList({
   items: LocatedItem[];
   empty: string;
   date: (sourceId: string) => string;
-  onOpenQuote: (sourceId: string, line: number) => void;
+  onOpenQuote: (sourceId: string, line: number, quote?: string) => void;
 }) {
   return (
     <section>
@@ -345,7 +345,7 @@ function ItemList({
             <li key={`${item.source}-${item.line}`}>
               <button
                 type="button"
-                onClick={() => onOpenQuote(item.source, item.line)}
+                onClick={() => onOpenQuote(item.source, item.line, item.quote)}
                 className="text-left leading-snug text-ink-2 hover:underline"
               >
                 “{item.quote}”

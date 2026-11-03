@@ -60,6 +60,7 @@ export interface IdeaView {
   born: string;
   last_active: string;
   versions: IdeaVersion[];
+  closed: { source: string; line: number; quote: string } | null; // why it was parked or dropped
 }
 
 export interface Edge {
@@ -175,15 +176,24 @@ export interface Claim {
   evidence: Evidence[];
 }
 
+export interface Step {
+  text: string;
+  why: string;
+  due: string;
+  contest: number | null; // index into Board.contests
+  evidence: Evidence[];
+}
+
 export interface PersonFocus {
   member: string;
   idea: Claim | null;
-  next: Claim[];
+  next: Step[];
   modules: string[];
 }
 
 export interface Contest {
   question: string;
+  stakes: string;
   module: string | null;
   sides: { members: string[]; position: string }[];
   decide_by: string | null;
@@ -195,8 +205,10 @@ export interface Board {
   origin: string;
   as_of: string;
   written_at: string;
+  headline: Claim | null;
   problem: Claim | null;
   status: Claim | null;
+  agreed: Claim[];
   people: PersonFocus[];
   contests: Contest[];
   issues: string[];
