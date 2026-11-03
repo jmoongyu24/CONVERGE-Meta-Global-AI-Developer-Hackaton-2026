@@ -1,6 +1,6 @@
-# Converge
+# CONVERGE
 
-Converge sits beside your team's Notion meeting notes and answers four questions at a glance:
+CONVERGE sits beside your team's Notion meeting notes and answers four questions at a glance:
 where the team stands, which ideas are in play, which ones compete, and what you should do next.
 It draws the team's work as one picture, each module split into the colors of the people working
 on it, and every sentence links to the line of the notes it comes from.
