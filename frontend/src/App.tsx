@@ -114,7 +114,18 @@ export default function App() {
         setBoard(briefing);
         setUpdate(job);
       },
-      (e: unknown) => setError(String(e)),
+      (e: unknown) => {
+        // A connected page has no notes until its first update imports them: start (or join)
+        // that update, whose poll reloads when it is done, instead of failing.
+        if (String(e).startsWith("Error: 404")) {
+          startUpdate(workspaceId).then(
+            (job) => !stale && setUpdate(job),
+            (problem: unknown) => setError(String(problem)),
+          );
+          return;
+        }
+        setError(String(e));
+      },
     );
     return () => {
       stale = true;

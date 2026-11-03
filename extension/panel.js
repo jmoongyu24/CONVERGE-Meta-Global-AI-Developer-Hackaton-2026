@@ -4,7 +4,7 @@ const CONVERGE = "http://localhost:8000";
 const frame = document.getElementById("converge");
 let shown = null;
 
-const isNotion = (url) => /^https:\/\/([\w-]+\.)?notion\.(so|site)\//.test(url);
+const isNotion = (url) => /^https:\/\/([\w-]+\.)?notion\.(so|site|com)\//.test(url);
 
 async function follow() {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
