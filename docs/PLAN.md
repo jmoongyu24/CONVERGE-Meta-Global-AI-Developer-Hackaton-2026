@@ -13,7 +13,7 @@
 - **남은 시간**: 약 3.5일. Must 기능(F0~F6)과 제출(F8)에 집중하고, 11/4 20:00 KST에 feature freeze.
 - **진행 순서**: Meta API key(credit)가 오기 전에는 key 없이 되는 작업(F0a → F1 → F3 → F4 → F5)을 먼저 한다. F1의 gold label을 F2(LLM) 출력과 같은 schema로 만들어서, key 없이도 engine·API·UI를 실제와 같은 데이터로 개발한다. key가 오면 F2가 같은 schema를 만들도록 연결하고, gold와 비교한 결과가 곧 F7 eval이 된다.
 - **모델 학습**: 없음. 모든 AI 기능은 Meta Model API 호출로 구현.
-- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F7 · F9 · F10 완료. Muse Spark로 분석·briefing·Converge Room 동작, Notion 연결 → Update → Converge → Adopt 전체 흐름 확인, gold 대비 정량 평가(README 표). 첫 화면과 History는 신규 사용자 평가(ChatGPT·Gemini)를 반영해 세 차례 다듬음. 남은 것은 F8(제출).
+- **진행 현황 (11/3)**: F0a · F0b · F1 · F2 · F3 · F4 · F5 · F6 · F7 · F9 · F10 완료. Muse Spark로 분석·briefing·Converge Room 동작, Notion 연결 → Update → Converge → Adopt 전체 흐름 확인, gold 대비 정량 평가(README 표). 첫 화면과 History는 신규 사용자 평가(ChatGPT·Gemini)를 반영해 세 차례 다듬음. F8은 README 개편(화면 4장)과 영상 대본·제출 문구 초안까지 진행. 남은 것은 영상 녹화와 제출.
 - **UX 원칙 (사용자, 11/2)**: 기능 수보다 "한눈에 들어오는 화면"과 "설치·연결·Update만으로 끝나는 사용 경험"이 우선. 첫 화면은 ① 지금 상황 ② 나의 다음 할 일 ③ 공동 작업 그림(module을 참여자 색으로 세로 분할) ④ 경합 중인 것 ⑤ 사람별 아이디어·다음 단계만 보여주고, timeline·matrix는 History로 뺀다.
 
 ---
@@ -382,13 +382,13 @@ Round 3  Facilitator가 수렴안 2~3개 작성 (muse-wonder-1.0, structured out
 - `evaluate.py`: idea clustering (B³ F1), 발언자 attribution 정확도, lineage edge F1, quote 검증률, delegate citation faithfulness, 회의당 비용·latency
 - **DoD**: README에 결과 표
 - **구현**: `evaluate.py` (`uv run python -m app.evaluate [--rooms] [--json]`). 모델은 아이디어 이름을 자기 말로 붙이므로, 같은 발언(회의·줄·발언자)을 가장 많이 공유하는 gold 아이디어와 짝지은 뒤 비교한다. 지표: 아이디어 묶음 B³ F1, 계보 edge F1, 보류·폐기 판정, 최종 상태, 입장(정확·편), 발언자, 결정·할 일·질문 F1, quote 원문 일치·검증 통과율, Converge Room 근거율, 회의당 비용·시간. gold를 gold와 비교하면 모두 1.0이 나오는 것을 test로 확인
-- **결과 (3개 팀 평균)**: 첫 측정에서 오류를 분석해 prompt를 한 번 고침 (결과 보고를 지지로, 후속 아이디어를 새 아이디어로, 교수의 지시를 결정이 아닌 것으로 본 오류) → B³ F1 0.83 → 0.89, 계보 F1 0.77 → 0.89, 입장 정확 0.66 → 0.82, 입장 편 0.81 → 0.87, 결정 F1 0.58 → 0.61, 최종 상태 0.96 → 0.88 (한 팀에서 후반 논의가 다른 아이디어에 붙어 휴면 판정이 달라짐). 발언자 0.99, quote 원문 일치 1.00, Converge Room 발언의 quote 근거 1.00, 회의당 약 /bin/bash.01·20초. 같은 데이터로 한 번 조정했으므로 benchmark가 아니라 sanity check로 본다
+- **결과 (3개 팀 평균)**: 첫 측정에서 오류를 분석해 prompt를 한 번 고침 (결과 보고를 지지로, 후속 아이디어를 새 아이디어로, 교수의 지시를 결정이 아닌 것으로 본 오류) → B³ F1 0.83 → 0.89, 계보 F1 0.77 → 0.89, 입장 정확 0.66 → 0.82, 입장 편 0.81 → 0.87, 결정 F1 0.58 → 0.61, 최종 상태 0.96 → 0.88 (한 팀에서 후반 논의가 다른 아이디어에 붙어 휴면 판정이 달라짐). 발언자 0.99, quote 원문 일치 1.00, Converge Room 발언의 quote 근거 1.00, 회의당 약 $0.01·20초. 같은 데이터로 한 번 조정했으므로 benchmark가 아니라 sanity check로 본다
 
 ### F8. Ship · 11/4(수) 저녁 ~ 11/5(목) 09:00 · 5h
 
 - 배포: demo mode (미리 처리된 demo DB, converge는 cache + rate limit)
-- README (English): 문제, 해결, demo GIF, architecture, Meta 모델 사용 방식, eval 결과, 실행 방법
-- Demo 영상 2~3분 → 제출 (필요하면 repo public 전환)
+- README (English): 문제, 해결, 화면 4장(`docs/images/`), 동작 흐름(mermaid), Meta 모델 사용 방식, eval 결과, 실행 방법 → **완료 (11/3)**
+- Demo 영상 2~3분 → 제출 (필요하면 repo public 전환). 녹화 준비·scene별 대본·제출 양식 문구 초안은 [Claude Doc](https://claude.ai/artifact/RrHkPjdCYmYWRmp8CUvskK)에 정리 (11/3)
 - **DoD**: 11/5 09:00 KST 전에 제출 완료
 
 ---
@@ -409,17 +409,19 @@ key가 11/3 이후에 오면 F2·F6를 11/4에 몰아서 해야 한다. 그래�
 
 ---
 
-## 9. Demo 시나리오 (영상 약 2분 30초)
+## 9. Demo 시나리오 (영상 약 2분 40초)
+
+synthetic Ruiz Lab(long-term-dependency) 한 팀으로 처음부터 끝까지 찍는다. 실제 연구실 Notion은 쓰지 않는다. scene별 화면 조작과 English narration은 F8의 Claude Doc에 있다 (11/3 개정).
 
 | 시간 | 장면 |
 |---|---|
-| 0:00–0:20 | Problem: 실제 연구실 Notion이 끝없이 스크롤됨 (내용은 blur). "N주, M개 회의록. 지금 누가 뭘 하고 있지?" (실제 숫자로 교체) |
-| 0:20–0:40 | Notion 연결 → pipeline 진행 상황 streaming |
-| 0:40–1:10 | Lineage View: time slider 재생. 아이디어 탄생·분기·병합. 노드 클릭 → 검증된 원문 quote |
-| 1:10–1:30 | Architecture: 같은 slider로 RNN encoder가 LSTM·GRU·attention을 거쳐 Transformer block으로 바뀌는 과정 재생. Notion 화이트보드 이미지가 module이 되는 장면, 팀원이 담당을 바꾸면 Notion에 한 줄이 생기는 장면 |
-| 1:30–1:40 | Team View: stance matrix로 합의·충돌 지점 확인 |
-| 1:40–2:15 | Converge Room: delegate 토론 live → 수렴안 → Adopt → lineage에 merge 노드 등장 |
-| 2:15–2:40 | Under the hood (Meta 모델 사용 방식 + eval 수치) → Impact 한 문장으로 마무리 |
+| 0:00–0:15 | Problem: Notion의 Ruiz Lab 회의록 10개를 스크롤. "10 meetings · 4 people · 3 years" |
+| 0:15–0:35 | Notion 옆 side panel → Connect and update → board (기다리는 구간은 편집으로 자름) |
+| 0:35–1:05 | Now: 상태 문장 → Agreed · Still open · Your next step → 인용 클릭 → 회의록 원문 줄 highlight |
+| 1:05–1:20 | Work map: 세 색으로 나뉜 COMPETING module, 사람 클릭 → 그 사람의 일만 highlight |
+| 1:20–2:00 | Converge Room: delegate 2 round → 수렴안 → Adopt → Notion에 Converge session page |
+| 2:00–2:25 | History: Play로 RNN → LSTM → GRU → attention → Transformer 계보 재생 → Sora의 whiteboard 이미지 |
+| 2:25–2:40 | README 평가 표, `./start.sh` 한 줄, repo 주소로 마무리 |
 
 ---
 
